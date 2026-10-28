@@ -16,9 +16,9 @@
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
   :root{ --ink:#1a1a2e; --pink:#ff2e88; --yellow:#ffd23f; --lime:#8be04e; --sky:#2d9cff; --purple:#a855f7; --cream:#fff1f8; --soft:#f3eef7; }
-  html,body{height:100%;}
-  body{font-family:'Baloo 2','PingFang SC','Microsoft YaHei',sans-serif;color:var(--ink);background:var(--cream);position:fixed;inset:0;overflow:hidden;}
-  .app{position:absolute;left:0;right:0;top:var(--vt,0px);height:var(--vh,100%);display:flex;flex-direction:column;padding-top:calc(env(safe-area-inset-top) * var(--sa,1));padding-bottom:calc(env(safe-area-inset-bottom) * var(--sa,1));background:var(--cream);background-image:radial-gradient(#ffd23f44 1.5px, transparent 1.6px);background-size:22px 22px;}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none;}
+  body{font-family:'Baloo 2','PingFang SC','Microsoft YaHei',sans-serif;color:var(--ink);background:var(--cream);position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;}
+  .app{position:absolute;left:0;right:0;top:var(--vt,0px);height:var(--vh,100%);overflow:hidden;display:flex;flex-direction:column;padding-top:calc(env(safe-area-inset-top) * var(--sa,1));padding-bottom:calc(env(safe-area-inset-bottom) * var(--sa,1));background:var(--cream);background-image:radial-gradient(#ffd23f44 1.5px, transparent 1.6px);background-size:22px 22px;}
   #screens{flex:1;position:relative;overflow:hidden;}
   .screen{position:absolute;inset:0;display:none;flex-direction:column;opacity:0;transition:opacity .2s ease;}
   .screen.active{display:flex;opacity:1;}
@@ -35,7 +35,7 @@
   .head .cttl{font-family:'ZCOOL KuaiLe';font-size:19px;flex:1;text-align:center;}
 
   .search{margin:2px 16px 8px;padding:10px 13px;border:3px solid var(--ink);border-radius:16px;background:#fff;box-shadow:4px 4px 0 var(--yellow);font-size:13.5px;font-weight:600;color:#9a93ad;display:flex;align-items:center;gap:7px;flex-shrink:0;}
-  .body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:10px;}
+  .body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:10px;}
 
   /* chat list */
   .clist{padding:2px 12px 6px;}
@@ -75,7 +75,7 @@
   .ccell .ava{width:44px;height:44px;border-radius:13px;}
   .ccell .ava img{width:44px;height:44px;}
   .ccell .nm{flex:1;font-weight:700;font-size:14.5px;}
-  .idx{position:absolute;right:3px;top:120px;display:flex;flex-direction:column;gap:1px;font-size:10px;font-weight:800;color:var(--pink);opacity:.8;}
+  .idx{position:absolute;right:3px;top:50%;transform:translateY(-42%);z-index:5;display:flex;flex-direction:column;gap:1px;font-size:10px;font-weight:800;color:var(--pink);opacity:.8;pointer-events:none;}
 
   /* discover */
   .card{background:#fff;margin:10px 12px;border:3px solid var(--ink);border-radius:18px;overflow:hidden;box-shadow:4px 4px 0 var(--lime);}
@@ -127,7 +127,7 @@
   .tab.on .spark{animation:spark .6s ease forwards;}
 
   /* ===== login ===== */
-  .login{position:absolute;inset:0;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px 24px calc(24px + env(safe-area-inset-bottom));background:linear-gradient(165deg,#ffe4f1 0%,#fff8dc 48%,#e2f6ff 100%);}
+  .login{position:absolute;inset:0;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:24px 24px calc(24px + env(safe-area-inset-bottom));background:linear-gradient(165deg,#ffe4f1 0%,#fff8dc 48%,#e2f6ff 100%);}
   .lwrap{margin:auto 0;display:flex;flex-direction:column;align-items:center;width:100%;}
   .lmascot{width:128px;height:128px;object-fit:contain;animation:floaty 3.4s ease-in-out infinite;filter:drop-shadow(4px 7px 0 rgba(26,26,46,.16));}
   .lmascot.hop{animation:hop .72s cubic-bezier(.34,1.56,.64,1);}
@@ -203,7 +203,7 @@
             <div class="lhint">本地演示版 · 未接后端<br>验证码会直接提示你，随便填就能进</div>
           </div>
           <div class="lguest" id="btnGuest"><span>先随便逛逛 ›</span></div>
-          <div class="lfoot">JELLY WECHAT · 构建 1028.15:17</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1028.15:29</div>
         </div>
       </div>
     </section>
@@ -277,8 +277,8 @@
         <div class="ghead">Z</div>
         <div class="ccell"><div class="ava"><img data-k="ava_hero" alt=""></div><div class="nm">张三</div></div>
         <div class="ccell"><div class="ava"><img data-k="ava_robot" alt=""></div><div class="nm">周五</div></div>
-        <div class="idx"><span>A</span><span>C</span><span>M</span><span>X</span><span>Z</span></div>
       </div>
+      <div class="idx"><span>A</span><span>C</span><span>M</span><span>X</span><span>Z</span></div>
     </section>
 
     <!-- ================= 发现 ================= -->
@@ -346,7 +346,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1028.15:17</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1028.15:29</div>
       </div>
     </section>
 
@@ -540,26 +540,43 @@
     else{ $('#tabbar').style.display='none'; showScreen('login'); }
   })();
 
-  /* ---------- iOS 键盘适配：跟随 visualViewport（含 offsetTop 补偿 + 异常值防御） ---------- */
+  /* ---------- iOS 键盘适配：只跟随键盘（resize），不跟随用户滚动 ----------
+     关键：绝不能监听 visualViewport 的 scroll 事件。
+     用户手指滑动聊天记录时，iOS 也会触发 vv.scroll 并改变 offsetTop，
+     若此时把 offsetTop 写进 --vt，容器 top 会跟着手指反向移动，
+     表现出来就是「向上滑，页面反而向下滚」，且松手后停止触发才恢复正常。 */
   var vvFit=function(){};
   (function(){
     var vv=window.visualViewport; if(!vv) return;
-    var raf=0;
-    vvFit=function(){
+    var baseH=Math.round(vv.height)||window.innerHeight||0;   /* 键盘未弹起时的可视高（持续取最大值，键盘收起会自动校准） */
+    var timer=0, touching=false, dirty=false;
+    var apply=function(){
+      if(touching){ dirty=true; return; }                     /* 手指还在屏幕上：绝不动布局，等松手再算 */
+      dirty=false;
       var h=Math.round(vv.height)||0;
       var t=Math.round(vv.offsetTop)||0;
+      if(h<=120) return;                                      /* 键盘动画中间值/异常帧：整帧丢弃，保持上一次正确状态，不写任何变量 */
+      if(h>baseH) baseH=h;                                    /* 地址栏收起等正常变高，更新基准 */
+      if(!baseH) baseH=window.innerHeight||0;
       var root=document.documentElement.style;
-      if(h>120){ root.setProperty('--vh', h+'px'); }   /* 键盘动画期间可能给出极小值，忽略 */
-      root.setProperty('--vt', t+'px');                /* 抵消 iOS 把可视区上推 */
-      root.setProperty('--sa', t>10 ? '0' : '1');      /* 键盘态不需要刘海安全区留白 */
+      var kbd = (baseH-h)>120;                                /* 高度骤降 >120px 才算键盘态 */
+      root.setProperty('--vh', h+'px');
+      root.setProperty('--vt', (kbd ? t : 0)+'px');           /* 非键盘态强制归零，避免未聚焦时的微调把页面顶歪 */
+      root.setProperty('--sa', kbd ? '0' : '1');
     };
-    var schedule=function(){
-      if(raf) return;
-      raf=requestAnimationFrame(function(){ raf=0; vvFit(); });
+    vvFit=function(){
+      /* 键盘弹起/收起动画会连续触发多次 resize，等它稳定 70ms 再写，避免中间值来回抖 */
+      if(timer) clearTimeout(timer);
+      timer=setTimeout(function(){ timer=0; apply(); },70);
     };
-    vv.addEventListener('resize',schedule);
-    vv.addEventListener('scroll',schedule);
-    vvFit();
+    vv.addEventListener('resize',vvFit);
+    /* 故意不注册 vv 'scroll' 监听 —— 用户滑动列表时它会触发并改变 offsetTop，
+       写进 --vt 会让 .app 跟着手指反向位移（表现为「上滑却往下滚」），松手才恢复。 */
+    var endTouch=function(){ touching=false; if(dirty){ vvFit(); } };
+    window.addEventListener('touchstart',function(){ touching=true; },{passive:true});
+    window.addEventListener('touchend',endTouch,{passive:true});
+    window.addEventListener('touchcancel',endTouch,{passive:true});
+    apply();
   })();
 
   /* ---------- Service Worker：注册 + 新版本自动接管刷新 ---------- */
