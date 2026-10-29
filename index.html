@@ -340,6 +340,8 @@
   .fnote{font-size:11.5px;font-weight:700;color:#9a93ad;line-height:1.6;padding:0 4px 8px;}
   .hit{display:flex;align-items:center;gap:12px;padding:12px;margin:10px 0;background:#fff;border:3px solid var(--ink);border-radius:18px;box-shadow:4px 4px 0 var(--sky);animation:pop .3s ease;}
   .hit .mid .sub{font-size:11.5px;color:#9a93ad;font-weight:700;margin-top:3px;}
+  /* 每条凭据单独一行：用「·」串起来会在窄屏从中间断开，看起来像掉字 */
+  .hit .mid .sub > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5;}
   .btnRow{display:flex;gap:9px;margin:10px 0;}
   .btnRow .lbtn{flex:1;height:46px;font-size:14px;}
   /* ghost 按钮原本只换了背景色，文字仍是 .lbtn 的白色 —— 浅底白字等于看不见。
@@ -398,7 +400,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.15:42</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.16:08</div>
         </div>
       </div>
     </section>
@@ -705,7 +707,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.15:42</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.16:08</div>
       </div>
     </section>
 
@@ -2789,13 +2791,19 @@
     var mid = el('div', 'mid');
     mid.appendChild(el('div', 'nm', u.nickname || '有人'));
 
-    /* 副标题按「越不敏感越靠前」排：果冻号 → 脱敏手机号 → 脱敏邮箱。
+    /* 副标题按「越不敏感越靠前」排：果冻号 → 脱敏手机号 → 脱敏邮箱，每条一行。
        没邮箱的账号也会有果冻号，所以这里不会出现空白。 */
     var bits = [];
     if(u.jelly_id) bits.push('果冻号 ' + u.jelly_id);
     if(u.phone_masked) bits.push(u.phone_masked);
     if(u.email_masked) bits.push(u.email_masked);
-    mid.appendChild(el('div', 'sub', bits.join(' · ') || maskEmail(key)));
+    var sub = el('div', 'sub');
+    if(bits.length){
+      bits.forEach(function(t){ sub.appendChild(el('div', '', t)); });
+    }else{
+      sub.textContent = maskEmail(key);
+    }
+    mid.appendChild(sub);
 
     var src = { phone: '手机号命中', email: '邮箱命中', jelly: '果冻号命中' }[u.hit_by];
     if(src) mid.appendChild(el('div', 'src', src));
@@ -3540,7 +3548,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.15:42';
+    var BUILD='1029.16:08';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
