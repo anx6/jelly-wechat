@@ -541,6 +541,15 @@
   .svc .sico{font-size:24px;line-height:1.2;}
   .svc .snm{font-size:12.5px;font-weight:800;color:var(--ink);margin-top:6px;}
   /* 说明块独立成块、放在宫格下方（见 renderDemo 的 service 分支注释） */
+  /* 行内小按钮（黑名单「移出」）：不要做成整宽的 dbtn，会把列表撑散 */
+  .minibtn{flex:none;padding:6px 12px;border:2.5px solid var(--ink);border-radius:12px;
+    background:var(--card2);color:var(--ink);font-family:inherit;font-size:11.5px;
+    font-weight:800;cursor:pointer;}
+  .minibtn:active{background:var(--skel);}
+  /* 设置页分组标题（FR-805） */
+  .setgrp{font-size:11px;font-weight:800;color:var(--dim);letter-spacing:1px;
+    padding:14px 20px 5px;text-transform:none;}
+  .setgrp:first-child{padding-top:8px;}
   .svcdesc{margin:0 12px 12px;background:var(--card2);border:2px dashed var(--line-soft);
     border-radius:12px;padding:10px 12px;font-size:11.5px;line-height:1.7;font-weight:700;
     color:var(--txt2);white-space:pre-line;}
@@ -744,7 +753,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1029.20:31';
+window.__BUILD = '1029.20:38';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -782,7 +791,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.20:31</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.20:38</div>
         </div>
       </div>
     </section>
@@ -1201,23 +1210,53 @@ try{
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
       <div class="body">
+        <!-- FR-805：设置首页按「账号与安全 / 隐私 / 通用 / 通知 / 关于」分组。
+             分组标题不是装饰：微信的设置就是这个结构，用户找不到东西时
+             第一反应是「在隐私里」而不是「翻完整个列表」。 -->
+        <div class="setgrp">账号与安全</div>
+        <div class="card">
+          <div class="cell" id="setAccount"><div class="chip" style="background:var(--sky)">🆔</div><div class="nm">我的账号</div><div class="mv" id="setAccountVal">-</div><div class="chev">›</div></div>
+          <div class="cell" id="setLogout"><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div>
+        </div>
+
+        <div class="setgrp">隐私</div>
+        <div class="card">
+          <div class="cell" id="setAddMode"><div class="chip" style="background:var(--lime)">🤝</div><div class="nm">加我为朋友的方式</div><div class="mv" id="setAddModeVal">需要验证</div><div class="chev">›</div></div>
+          <div class="cell" id="setRange"><div class="chip" style="background:var(--yellow)">🕒</div><div class="nm">朋友圈可见范围</div><div class="mv" id="setRangeVal">全部可见</div><div class="chev">›</div></div>
+          <div class="cell" id="setCover"><div class="chip" style="background:var(--pink)">🖼</div><div class="nm">相册封面</div><div class="mv" id="setCoverVal">默认渐变</div><div class="chev">›</div></div>
+          <div class="cell" id="setBlock"><div class="chip" style="background:var(--ink)">🚫</div><div class="nm">黑名单</div><div class="mv" id="setBlockVal">-</div><div class="chev">›</div></div>
+        </div>
+
+        <div class="setgrp">通用</div>
         <div class="card">
           <div class="cell" id="setTheme"><div class="chip" style="background:var(--purple)">🌙</div><div class="nm">深色模式</div><div class="mv" id="setThemeVal">跟随系统</div><div class="chev">›</div></div>
           <div class="cell" id="setFont"><div class="chip" style="background:var(--sky)">🔤</div><div class="nm">字体大小</div><div class="mv" id="setFontVal">标准</div><div class="chev">›</div></div>
           <div class="cell" id="setChatBg"><div class="chip" style="background:var(--lime)">🎨</div><div class="nm">聊天背景</div><div class="mv" id="setChatBgVal">默认</div><div class="chev">›</div></div>
-        </div>
-        <div class="card">
-          <div class="cell" id="setRange"><div class="chip" style="background:var(--yellow)">🕒</div><div class="nm">朋友圈可见范围</div><div class="mv" id="setRangeVal">全部可见</div><div class="chev">›</div></div>
-          <div class="cell" id="setCover"><div class="chip" style="background:var(--pink)">🖼</div><div class="nm">相册封面</div><div class="mv" id="setCoverVal">默认渐变</div><div class="chev">›</div></div>
-        </div>
-        <div class="card">
-          <div class="cell" id="setNotify"><div class="chip" style="background:var(--pink)">🔔</div><div class="nm">通知</div><div class="mv" id="setNotifyVal">已开启</div><div class="chev">›</div></div>
           <div class="cell" id="setStorage"><div class="chip" style="background:var(--sky)">💾</div><div class="nm">存储空间</div><div class="mv" id="setStorageVal">计算中…</div><div class="chev">›</div></div>
           <div class="cell" id="setDiscover"><div class="chip" style="background:var(--purple)">🧭</div><div class="nm">发现页管理</div><div class="chev">›</div></div>
+        </div>
+
+        <div class="setgrp">通知</div>
+        <div class="card">
+          <div class="cell" id="setNotify"><div class="chip" style="background:var(--pink)">🔔</div><div class="nm">通知</div><div class="mv" id="setNotifyVal">已开启</div><div class="chev">›</div></div>
+        </div>
+
+        <div class="setgrp">关于</div>
+        <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.20:31</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.20:38</div>
       </div>
+    </section>
+
+    <!-- ================= 黑名单（FR-806） ================= -->
+    <section class="screen" data-screen="blocklist">
+      <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">黑名单</div>
+        <div style="width:38px;flex-shrink:0;"></div>
+      </div>
+      <div class="body" id="blockBody"></div>
     </section>
 
     <!-- ================= 通知设置（P3-5 / FR-807） ================= -->
@@ -1366,7 +1405,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.20:31</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.20:38</div>
       </div>
     </section>
 
@@ -1528,6 +1567,10 @@ try{
     qrKind: 'me',         /* me / group —— 同一个页面渲染两种身份 */
     qrMat: null,          /* 当前矩阵，存一份给「保存到相册」画 canvas 用 */
     qrFile: '',           /* 建议的保存文件名 */
+    /* ---- 隐私设置与黑名单（P3-9 FR-806）---- */
+    noPrivacy: false,     /* p3g 没跑：get_privacy / blocks 都不存在 */
+    privacy: null,        /* { addMode: 'verify'|'direct'|'closed', blocked: N } */
+    blockedList: [],      /* 黑名单人员 */
     /* ---- 收藏（P3-8 FR-803）---- */
     noFav: false,         /* p3f 没跑：favorites 表不存在 */
     favs: [],             /* 已加载的收藏 */
@@ -2593,6 +2636,60 @@ try{
   function delFavorite(id){
     if(S.noFav) return Promise.reject(new Error('收藏功能还没开通'));
     return api('/rest/v1/favorites?id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
+  }
+
+  /* ---------------- 隐私设置与黑名单（P3-9 / FR-806） ----------------
+     blocks 表没有 policy，直连一律被拒，只能走这几个 security definer 函数。
+     p3g 没跑时 PostgREST 回 404 / PGRST202（函数不存在），锁死 S.noPrivacy，
+     之后设置页显示「还没开通」，不再反复请求。 */
+  function _privacyGone(e){
+    return !!(e && (e.status === 404 || (e.data && /PGRST202|does not exist/.test(JSON.stringify(e.data)))));
+  }
+
+  function loadPrivacy(){
+    if(S.noPrivacy) return Promise.resolve(null);
+    return api('/rest/v1/rpc/get_privacy', { method: 'POST', body: {} })
+      .then(function(d){
+        var o = d || {};
+        S.privacy = { addMode: o.add_mode || 'verify', blocked: Number(o.blocked) || 0 };
+        return S.privacy;
+      }).catch(function(e){
+        if(_privacyGone(e)) S.noPrivacy = true;
+        throw e;
+      });
+  }
+
+  function setAddMode(mode){
+    if(S.noPrivacy) return Promise.reject(new Error('还没开通'));
+    return api('/rest/v1/rpc/set_add_friend_mode', { method: 'POST', body: { p_mode: mode } })
+      .then(function(){ S.privacy.addMode = mode; return mode; });
+  }
+
+  function loadBlocked(){
+    if(S.noPrivacy) return Promise.resolve([]);
+    return api('/rest/v1/rpc/list_blocked', { method: 'POST', body: {} })
+      .then(function(rows){
+        return (rows || []).map(function(r){
+          return {
+            userId: r.user_id, nickname: r.nickname || '有人',
+            avatar: r.avatar || 'ava_hero', jellyId: r.jelly_id || '',
+            at: r.created_at
+          };
+        });
+      }).catch(function(e){
+        if(_privacyGone(e)) S.noPrivacy = true;
+        throw e;
+      });
+  }
+
+  function blockUser(uid){
+    if(S.noPrivacy) return Promise.reject(new Error('还没开通'));
+    return api('/rest/v1/rpc/block_user', { method: 'POST', body: { p_uid: uid } });
+  }
+
+  function unblockUser(uid){
+    if(S.noPrivacy) return Promise.reject(new Error('还没开通'));
+    return api('/rest/v1/rpc/unblock_user', { method: 'POST', body: { p_uid: uid } });
   }
 
 /* =====================================================================
@@ -3690,6 +3787,8 @@ try{
       var nm = el('div', 'nm', f.remark || f.nickname || '好友');
       row.appendChild(ava); row.appendChild(nm);
       row.addEventListener('click', function(){ openFriend(f); });
+      /* 长按走管理菜单（加黑名单）；点一下还是直接开会话 */
+      bindLongPress(row, function(){ friendMenu(f); });
       box.appendChild(row);
     });
     if(window.__fillImg) window.__fillImg();
@@ -5022,6 +5121,70 @@ try{
        两处一定要分开说，否则用户会以为「清了缓存图片就该消失」。 */
     var st = $('#setStorageVal');
     if(st) st.textContent = fmtBytes(storageBreakdown().total);
+
+    /* FR-805/806 新增的三项 */
+    var ac = $('#setAccountVal');
+    if(ac) ac.textContent = (S.me && S.me.jelly_id) ? ('果冻号 ' + S.me.jelly_id) : '未登录';
+    var am = $('#setAddModeVal');
+    if(am) am.textContent = S.noPrivacy ? '还没开通' : ADD_MODE_LABEL[(S.privacy && S.privacy.addMode) || 'verify'];
+    var bl = $('#setBlockVal');
+    if(bl) bl.textContent = S.noPrivacy ? '还没开通' : ((S.privacy && S.privacy.blocked) || 0) + ' 人';
+  }
+
+  /* ---------------- 隐私：加我为朋友的方式（FR-806） ---------------- */
+  var ADD_MODE_LABEL = { verify: '需要验证', direct: '直接通过', closed: '禁止加我' };
+
+  var ADD_MODE_DESC = {
+    verify: '对方申请后要你点「通过」才会成为好友。',
+    direct: '对方一申请就直接成为好友，不用你确认 —— 只建议在熟人多的场合用。',
+    closed: '任何人都加不了你，已有的好友不受影响。'
+  };
+
+  /* ---------------- 黑名单（FR-806） ---------------- */
+  function renderBlockList(){
+    var box = $('#blockBody');
+    if(!box) return;
+    box.innerHTML = '';
+
+    if(S.noPrivacy){
+      box.appendChild(demoCard('还没开通', '黑名单需要先建表',
+        '黑名单用一张 blocks 表（只有你自己能读写，别人看不见你拉黑了谁）。\n' +
+        '在 Supabase 控制台执行 supabase_migration_p3g_privacy.sql 之后\n' +
+        '回到这里刷新就能用，不用重新发布前端。'));
+      return;
+    }
+
+    var list = S.blockedList || [];
+    if(!list.length){
+      var empty = el('div', 'dempty');
+      empty.appendChild(el('div', 'ph', '🚫'));
+      empty.appendChild(el('div', 'esub',
+        '黑名单是空的。\n在通讯录里长按一个好友，选「加入黑名单」。'));
+      box.appendChild(empty);
+      return;
+    }
+
+    list.forEach(function(b){
+      var row = el('div', 'ccell');
+      row.setAttribute('data-buid', b.userId);
+      var ava = el('div', 'ava');
+      ava.appendChild(avaImg(b.avatar));
+      row.appendChild(ava);
+      row.appendChild(el('div', 'nm', b.nickname));
+      var btn = el('button', 'minibtn', '移出');
+      btn.type = 'button';
+      btn.setAttribute('data-unblock', b.userId);
+      row.appendChild(btn);
+      box.appendChild(row);
+    });
+    fillImgIn(box);
+
+    var tip = el('div', 'hint');
+    tip.style.cssText = 'padding:12px 18px;';
+    tip.appendChild(document.createTextNode(
+      '拉黑后对方不能再加你为好友，也搜不到你。\n' +
+      '取消拉黑后关系恢复，不用重新申请。'));
+    box.appendChild(tip);
   }
 
   /* ---------------- 通知设置（P3-5 / FR-807） ---------------- */
@@ -7197,6 +7360,31 @@ try{
 
   bind('#setAbout', 'click', openAbout);
 
+  /* ---------------- 隐私与黑名单（FR-806） ---------------- */
+  bind('#setAddMode', 'click', openAddMode);
+
+  bind('#setBlock', 'click', openBlockList);
+
+  bind('#setAccount', 'click', function(){ setTab('me'); });
+
+  /* 退出登录在设置页也放一份（微信就在这儿）：复用「我」页那个按钮的流程 */
+  bind('#setLogout', 'click', function(){
+    var n = document.querySelector('[data-logout]');
+    if(n) n.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
+
+  /* 黑名单行是每次重渲染重建的，用委托 */
+  bind('#blockBody', 'click', function(e){
+    var t = e.target;
+    if(!t || !t.closest) return;
+    var b = t.closest('[data-unblock]');
+    if(!b) return;
+    var uid = b.getAttribute('data-unblock');
+    var row = b.closest('[data-buid]');
+    var nick = row ? (row.querySelector('.nm') || {}).textContent : '';
+    doUnblock(uid, nick);
+  });
+
   bind('#nfSound', 'click', function(){ togglePref('sound'); });
 
   bind('#nfVibrate', 'click', function(){ togglePref('vibrate'); });
@@ -7593,6 +7781,9 @@ try{
   function openSettings(){
     goPage('settings', 'me');
     renderSettings();
+    /* 隐私那两行（加我方式 / 黑名单人数）要问服务端。
+       失败时 noPrivacy 被锁上，这两行显示「还没开通」，不影响其他设置项。 */
+    refreshPrivacy();
   }
 
   /* ---------------- P3-5：通知 / 存储 / 发现页 / 关于 ---------------- */
@@ -8116,7 +8307,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.20:31';
+    var BUILD='1029.20:38';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
@@ -8551,6 +8742,94 @@ try{
         { label: '确定删除「' + (f.title || favPreview(f)) + '」', danger: true, fn: function(){ doFavDel(f); } }
       ]);
     } });
+    openSheet(items);
+  }
+
+  /* ================= 隐私设置与黑名单（P3-9 / FR-806） ================= */
+
+  function refreshPrivacy(){
+    return loadPrivacy().then(function(){
+      renderSettings();
+      return S.privacy;
+    }).catch(function(e){
+      /* p3g 没跑时这里会锁死 noPrivacy，设置页显示「还没开通」而不是报错弹窗 */
+      if(!S.noPrivacy) toast(friendly(e && e.message));
+      renderSettings();
+      return null;
+    });
+  }
+
+  /* 加我为朋友的方式：三选一。选完立刻生效（服务端函数里 update 一行），
+     不需要额外的「保存」按钮 —— 这种单选设置多一步确认反而让人以为没生效。 */
+  function openAddMode(){
+    if(S.noPrivacy){ toast('隐私设置需要先执行 p3g 迁移'); return; }
+    var cur = (S.privacy && S.privacy.addMode) || 'verify';
+    var items = ['verify', 'direct', 'closed'].map(function(k){
+      return {
+        label: (cur === k ? '✓ ' : '') + ADD_MODE_LABEL[k],
+        fn: function(){
+          if(cur === k) return;
+          setAddMode(k).then(function(){
+            toast('已改为「' + ADD_MODE_LABEL[k] + '」');
+            renderSettings();
+          }).catch(function(e){ toast(friendly(e && e.message)); });
+        }
+      };
+    });
+    openSheet(items);
+  }
+
+  function openBlockList(){
+    goPage('blocklist', 'settings');
+    S.blockedList = S.blockedList || [];
+    renderBlockList();
+    loadBlocked().then(function(list){
+      S.blockedList = list;
+      renderBlockList();
+      /* 顺手把人数刷到设置页那一行，免得用户返回时看到旧数字 */
+      if(S.privacy) S.privacy.blocked = list.length;
+      renderSettings();
+    }).catch(function(e){
+      renderBlockList();
+      if(!S.noPrivacy) toast(friendly(e && e.message));
+    });
+  }
+
+  /* 拉黑要二次确认：它会让对方彻底加不了我，误触代价不小。
+     文案里带上昵称，避免「确定要拉黑吗」这种不知道对象是谁的确认。 */
+  function doBlock(f){
+    if(!f || !f.user_id) return Promise.resolve();
+    if(S.noPrivacy){ toast('黑名单需要先执行 p3g 迁移'); return Promise.resolve(); }
+    openSheet([
+      { label: '确定把「' + (f.remark || f.nickname || '好友') + '」加入黑名单', danger: true, fn: function(){
+          blockUser(f.user_id).then(function(){
+            toast('已加入黑名单');
+            if(S.privacy) S.privacy.blocked = (S.privacy.blocked || 0) + 1;
+            return loadFriends().then(function(){ renderFriends(); renderSettings(); });
+          }).catch(function(e){ toast(friendly(e && e.message)); });
+        } }
+    ]);
+  }
+
+  function doUnblock(uid, nick){
+    if(!uid) return Promise.resolve();
+    return unblockUser(uid).then(function(){
+      S.blockedList = (S.blockedList || []).filter(function(x){ return x.userId !== uid; });
+      if(S.privacy) S.privacy.blocked = Math.max(0, (S.privacy.blocked || 0) - 1);
+      renderBlockList();
+      renderSettings();
+      toast('已把「' + (nick || '对方') + '」移出黑名单');
+    }).catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  /* 通讯录好友的长按菜单。点一下是直接开会话（高频动作），
+     长按才是低频的管理动作 —— 这个分工和微信一致。 */
+  function friendMenu(f){
+    if(!f) return;
+    var items = [{ label: '发消息', fn: function(){ openFriend(f); } }];
+    if(!S.noPrivacy){
+      items.push({ label: '加入黑名单', danger: true, fn: function(){ doBlock(f); } });
+    }
     openSheet(items);
   }
 </script>
