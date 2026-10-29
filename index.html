@@ -41,8 +41,11 @@
 
   /* chat list */
   .clist{padding:2px 12px 6px;}
-  .row{display:flex;align-items:center;gap:11px;padding:9px 10px;margin:8px 0;background:#fff;border:3px solid var(--ink);border-radius:20px;box-shadow:5px 5px 0 var(--lime);transition:transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .15s;opacity:0;animation:rise .5s cubic-bezier(.16,1,.3,1) forwards;}
-  .row:nth-child(1){animation-delay:.05s;}.row:nth-child(2){animation-delay:.1s;}.row:nth-child(3){animation-delay:.16s;}.row:nth-child(4){animation-delay:.22s;}.row:nth-child(5){animation-delay:.28s;}
+  .row{display:flex;align-items:center;gap:11px;padding:9px 10px;margin:8px 0;background:#fff;border:3px solid var(--ink);border-radius:20px;box-shadow:5px 5px 0 var(--lime);transition:transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .15s;opacity:1;}
+  /* 入场动画只在「新出现的行」上播放：加 .anim 才淡入，动画结束后由 JS 摘掉，
+     这样轮询刷新复用旧节点时不会每 3 秒重播一次淡入（闪动根因） */
+  .row.anim{opacity:0;animation:rise .5s cubic-bezier(.16,1,.3,1) forwards;}
+  .row.anim:nth-child(1){animation-delay:.05s;}.row.anim:nth-child(2){animation-delay:.1s;}.row.anim:nth-child(3){animation-delay:.16s;}.row.anim:nth-child(4){animation-delay:.22s;}.row.anim:nth-child(5){animation-delay:.28s;}
   .row:active{transform:scale(.96) rotate(-1deg);box-shadow:2px 2px 0 var(--lime);}
   .ava{width:52px;height:52px;flex-shrink:0;border:3px solid var(--ink);border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;}
   .ava img{width:52px;height:52px;object-fit:cover;object-position:center 10%;}
@@ -261,7 +264,7 @@
   .fld{background:var(--soft);border:3px solid var(--ink);border-radius:14px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);width:100%;outline:0;-webkit-user-select:text;user-select:text;}
   .fld:focus{background:#fff;box-shadow:0 0 0 3px #8be04e88;}
   .clabel{font-size:11.5px;font-weight:800;color:#8a80a0;letter-spacing:.5px;padding:14px 4px 6px;}
-  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}.row{opacity:1;}.sit{opacity:1;}.tab.on .sit{opacity:0;}.tab.on .stand{opacity:1;}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}.row,.row.anim{opacity:1;}.sit{opacity:1;}.tab.on .sit{opacity:0;}.tab.on .stand{opacity:1;}}
 </style>
 </head>
 <body>
@@ -290,7 +293,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.09:37</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.09:46</div>
         </div>
       </div>
     </section>
@@ -529,7 +532,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.09:37</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.09:46</div>
       </div>
     </section>
 
@@ -851,45 +854,129 @@
     return (c.last.sender_id === S.sess.user.id ? '我：' : '') + body;
   }
 
+  /* 会话行：cid -> { el, sig }。复用节点做增量更新，避免每轮轮询整表重建导致闪动 */
+  var convRowMap = {};
+
+  function convById(id){
+    for(var i=0;i<S.convs.length;i++){ if(S.convs[i].id === id) return S.convs[i]; }
+    return null;
+  }
+
+  /* 影响这一行「显示内容」的字段签名，签名不变就一个字节都不碰 DOM */
+  function convSig(c){
+    return [convName(c), fmtListTime(c.last && c.last.created_at), convPreview(c),
+            c.unread, c.mute ? 1 : 0, c.pinned_at ? 1 : 0, c.peer_avatar || ''].join('\u0001');
+  }
+
+  function convRowBuild(c){
+    var row = el('div', 'row anim' + (c.pinned_at ? ' pinned' : ''));
+    row.dataset.cid = c.id;
+
+    var ava = el('div', 'ava');
+    ava.appendChild(avaImg(c.peer_avatar || 'ava_cat'));
+
+    var mid = el('div', 'mid');
+    var nm = el('div', 'nm');
+    var nmText = document.createTextNode(convName(c));
+    var tEl = el('span', 't', fmtListTime(c.last && c.last.created_at));
+    nm.appendChild(nmText); nm.appendChild(tEl);
+    var msEl = el('div', 'ms', convPreview(c));
+    mid.appendChild(nm); mid.appendChild(msEl);
+    row.appendChild(ava); row.appendChild(mid);
+
+    /* 缓存子节点引用，后续更新只改文本，不重建结构 */
+    row._refs = { nmText: nmText, t: tEl, ms: msEl };
+
+    if(c.unread > 0){
+      if(c.mute) row.appendChild(el('span', 'dot'));
+      else row.appendChild(el('div', 'badge', c.unread > 99 ? '99+' : String(c.unread)));
+    }
+
+    /* 点击时按 id 取最新会话对象，避免闭包里拿到轮询前的旧数据 */
+    row.addEventListener('click', function(){
+      var t = convById(c.id);
+      if(t) openConv(t);
+    });
+    bindLongPress(row, function(){
+      var t = convById(c.id) || c;
+      convMenu(t);
+    });
+    /* 动画只播一次，播完摘掉 .anim：以后复用/移动都不会重播 */
+    row.addEventListener('animationend', function(){ row.classList.remove('anim'); }, { once: true });
+    return row;
+  }
+
+  function convRowPatch(row, c){
+    var r = row._refs; if(!r) return;
+    var nm = convName(c), tm = fmtListTime(c.last && c.last.created_at), pv = convPreview(c);
+    if(r.nmText.nodeValue !== nm) r.nmText.nodeValue = nm;
+    if(r.t.textContent !== tm) r.t.textContent = tm;
+    if(r.ms.textContent !== pv) r.ms.textContent = pv;
+
+    if(!!c.pinned_at !== row.classList.contains('pinned')) row.classList.toggle('pinned', !!c.pinned_at);
+
+    var badge = row.querySelector('.badge'), dot = row.querySelector('.dot');
+    var wantBadge = c.unread > 0 && !c.mute;
+    var wantDot = c.unread > 0 && !!c.mute;
+    if(wantBadge){
+      if(!badge){ badge = el('div', 'badge'); row.appendChild(badge); }
+      var txt = c.unread > 99 ? '99+' : String(c.unread);
+      if(badge.textContent !== txt) badge.textContent = txt;
+      if(dot && dot.parentNode) dot.parentNode.removeChild(dot);
+    }else if(wantDot){
+      if(!dot){ dot = el('span', 'dot'); row.appendChild(dot); }
+      if(badge && badge.parentNode) badge.parentNode.removeChild(badge);
+    }else{
+      if(badge && badge.parentNode) badge.parentNode.removeChild(badge);
+      if(dot && dot.parentNode) dot.parentNode.removeChild(dot);
+    }
+  }
+
   function renderConvs(){
     var box = $('#roomList'); if(!box) return;
-    var skel = $('#chatSkel'); if(skel) skel.style.display = 'none';
+    var skel = $('#chatSkel'); if(skel && skel.style.display !== 'none') skel.style.display = 'none';
     var empty = $('#chatEmpty');
-    box.innerHTML = '';
+
     if(!S.convs.length){
-      if(empty) empty.style.display = 'flex';
+      if(box.childNodes.length){ box.innerHTML = ''; convRowMap = {}; }
+      if(empty && empty.style.display !== 'flex') empty.style.display = 'flex';
       updateTabDot();
       return;
     }
-    if(empty) empty.style.display = 'none';
+    if(empty && empty.style.display !== 'none') empty.style.display = 'none';
 
-    S.convs.forEach(function(c, i){
-      var row = el('div', 'row' + (c.pinned_at ? ' pinned' : ''));
-      row.dataset.cid = c.id;
-      row.style.animationDelay = (0.03 + Math.min(i, 8) * 0.05) + 's';
-
-      var ava = el('div', 'ava');
-      ava.appendChild(avaImg(c.peer_avatar || 'ava_cat'));
-
-      var mid = el('div', 'mid');
-      var nm = el('div', 'nm');
-      nm.appendChild(document.createTextNode(convName(c)));
-      nm.appendChild(el('span', 't', fmtListTime(c.last && c.last.created_at)));
-      var ms = el('div', 'ms', convPreview(c));
-      mid.appendChild(nm); mid.appendChild(ms);
-
-      row.appendChild(ava); row.appendChild(mid);
-
-      if(c.unread > 0){
-        if(c.mute) row.appendChild(el('span', 'dot'));
-        else row.appendChild(el('div', 'badge', c.unread > 99 ? '99+' : String(c.unread)));
+    /* 1) 新增才建节点；内容变了就地打补丁；内容没变什么都不做 */
+    var order = [], created = false;
+    S.convs.forEach(function(c){
+      var sig = convSig(c);
+      var rec = convRowMap[c.id];
+      if(!rec){
+        var node = convRowBuild(c);
+        convRowMap[c.id] = { el: node, sig: sig };
+        box.appendChild(node);
+        created = true;
+      }else if(rec.sig !== sig){
+        convRowPatch(rec.el, c);
+        rec.sig = sig;
       }
-
-      row.addEventListener('click', function(){ openConv(c); });
-      bindLongPress(row, function(){ convMenu(c); });
-      box.appendChild(row);
+      order.push(convRowMap[c.id].el);
     });
-    if(window.__fillImg) window.__fillImg();
+    if(created && window.__fillImg) window.__fillImg();
+
+    /* 2) 清掉已不存在的会话 */
+    Object.keys(convRowMap).forEach(function(cid){
+      if(convById(cid)) return;
+      var n = convRowMap[cid].el;
+      if(n.parentNode) n.parentNode.removeChild(n);
+      delete convRowMap[cid];
+    });
+
+    /* 3) 只有顺序真的变了才移动（移动复用节点，不重建、不重播动画） */
+    var cur = Array.prototype.slice.call(box.children);
+    var same = cur.length === order.length && cur.every(function(n, i){ return n === order[i]; });
+    if(!same){
+      order.forEach(function(n){ box.appendChild(n); });
+    }
     updateTabDot();
   }
 
