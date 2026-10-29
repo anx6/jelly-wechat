@@ -101,6 +101,26 @@
   .viewer .vdot i{width:6px;height:6px;border-radius:50%;background:#fff5;}
   .viewer .vdot i.on{background:#fff;}
 
+  /* ===== P2：表情面板（FR-308）=====
+     从底部展开发，占掉 body 的高度（flex 布局自然收缩消息区），不遮挡输入栏 */
+  .emopanel{height:0;overflow:hidden;background:#fff;border-top:0 solid var(--ink);flex-shrink:0;
+            transition:height .22s cubic-bezier(.34,1.3,.64,1);}
+  .emopanel.on{height:208px;border-top-width:4px;}
+  .emotabs{display:flex;gap:6px;padding:8px 10px 4px;overflow-x:auto;scrollbar-width:none;}
+  .emotabs::-webkit-scrollbar{display:none;}
+  .emotabs .et{padding:5px 11px;border:2.5px solid var(--ink);border-radius:11px;background:#fff;font-size:12px;font-weight:800;white-space:nowrap;flex-shrink:0;box-shadow:2px 2px 0 rgba(26,26,46,.12);}
+  .emotabs .et.on{background:var(--yellow);}
+  .emogrid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:4px 8px 10px;overflow-y:auto;height:calc(100% - 44px);-webkit-overflow-scrolling:touch;}
+  .emogrid span{font-size:26px;line-height:1;display:flex;align-items:center;justify-content:center;height:38px;border-radius:10px;}
+  .emogrid span:active{background:var(--soft);}
+  /* 撤回后的提示气泡：去色、缩小、不抢眼 */
+  .bubble.recalled{background:#efe9f5 !important;color:#8b8199 !important;border:2px dashed #cdc2dd !important;
+                   box-shadow:none !important;font-weight:800;font-size:12px;padding:6px 11px;}
+
+  /* 大表情：整条消息只有 ≤3 个 emoji 时放大（B-03） */
+  .bubble.bigemoji{font-size:38px;line-height:1.15;padding:6px 10px;background:transparent;border-color:transparent;box-shadow:none;}
+  .msg.out .bubble.bigemoji{background:transparent;box-shadow:none;color:inherit;}
+
   .inputbar{display:flex;gap:7px;padding:8px 10px;border-top:4px solid var(--ink);background:#fff;align-items:flex-end;flex-shrink:0;}
   .ibtn{width:38px;height:38px;border:3px solid var(--ink);border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
   .field{flex:1;background:var(--soft);border:3px solid var(--ink);border-radius:16px;padding:9px 12px;font-size:13.5px;color:#aaa;font-weight:600;min-width:0;}
@@ -328,7 +348,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.11:27</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.14:11</div>
         </div>
       </div>
     </section>
@@ -401,9 +421,14 @@
       <div class="inputbar">
         <div class="ibtn" id="btnPickImg" role="button" aria-label="发送图片">🖼</div>
         <textarea class="field" id="msgInput" rows="1" maxlength="2000" placeholder="说点什么…"></textarea>
-        <div class="ibtn">😀</div>
+        <div class="ibtn" id="btnEmoji" role="button" aria-label="表情">😀</div>
         <button class="send" id="sendBtn" type="button" disabled>发送</button>
         <input type="file" id="filePick" accept="image/*" multiple style="display:none">
+      </div>
+      <!-- 表情面板（P2 / FR-308）：占键盘位置从底部展开 -->
+      <div class="emopanel" id="emoPanel">
+        <div class="emotabs" id="emoTabs"></div>
+        <div class="emogrid" id="emoGrid"></div>
       </div>
     </section>
 
@@ -568,7 +593,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.11:27</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.14:11</div>
       </div>
     </section>
 
@@ -630,6 +655,7 @@
                              目的：从列表点进会话时立刻用缓存渲染，不必等网络往返 */
     readMark: {},         /* 会话id -> 本地已读时间戳。返回列表时不等服务端写回，
                              用它在这个短窗口内压住服务端返回的旧 unread，避免角标回闪 */
+    deletedIds: {},       /* 消息id -> 1。本地删除（只我这一侧看不见）的消息集合 */
     filter: '',
     screen: 'login',
     listT: 0, chatT: 0, reqT: 0,
@@ -853,6 +879,17 @@
           members: Number(c.member_count || 0), draft: c.draft || ''
         };
       });
+      /* 本地删除的会话：只要还没有比删除时刻更新的消息就继续隐藏；
+         对方一发新消息，last_at 超过删除时刻，自动重新出现（PRD FR-205） */
+      var hid = readHidden(), changed = false;
+      S.convs = S.convs.filter(function(c){
+        var h = hid[c.id];
+        if(!h) return true;
+        var t = (c.last && c.last.created_at) ? new Date(c.last.created_at).getTime() : 0;
+        if(t > h){ delete hid[c.id]; changed = true; return true; }
+        return false;
+      });
+      if(changed) writeHidden(hid);
       return S.convs;
     });
   }
@@ -868,8 +905,19 @@
     });
   }
 
+  /* 本地删除集合：一次拉全量（只含自己删过的），之后靠本地维护 */
+  function loadDeletions(){
+    var uid = S.me && S.me.id;
+    if(!uid) return Promise.resolve();
+    return api('/rest/v1/message_deletions?select=message_id&user_id=eq.' + uid).then(function(rows){
+      var map = {};
+      (rows || []).forEach(function(r){ map[String(r.message_id)] = 1; });
+      S.deletedIds = map;
+    }).catch(function(){ /* 表还没建也不该影响聊天 */ });
+  }
+
   function refreshAll(){
-    return Promise.all([loadConvs(), loadFriends(), loadRequests()]).then(function(){
+    return Promise.all([loadConvs(), loadFriends(), loadRequests(), loadDeletions()]).then(function(){
       renderConvs(); renderFriends(); renderRequests(); renderMe();
     });
   }
@@ -1210,6 +1258,8 @@
     }
     /* 幂等 ②：同 id 已渲染过 */
     if(m.id && S.ids[m.id]) return null;
+    /* 本地删除：只删我这一侧，服务端还有，渲染时直接跳过 */
+    if(m.id && S.deletedIds && S.deletedIds[String(m.id)]) return null;
 
     /* 时间分割条：相邻消息间隔 > 5 分钟时插入（FR-314） */
     var at = m.created_at ? new Date(m.created_at).getTime() : 0;
@@ -1228,7 +1278,10 @@
 
     var pics = (m.msg_type === 'image') ? parsePics(m.content) : null;
     var bub;
-    if(pics && pics.length){
+    if(m.deleted_at){
+      /* 撤回：内容已清空，只留一句提示 */
+      bub = el('div', 'bubble recalled', mine ? '你撤回了一条消息' : '对方撤回了一条消息');
+    } else if(pics && pics.length){
       bub = el('div', 'bubble imgonly');
       bub.appendChild(buildPics(pics));
     } else if(m.msg_type === 'image'){
@@ -1236,6 +1289,9 @@
       bub = el('div', 'bubble', '[图片]');
     } else {
       bub = el('div', 'bubble', m.content);
+      /* 大表情：整条只有 1–3 个 emoji 时去掉气泡壳、放大到 38px（B-03） */
+      var ec = (!m.msg_type || m.msg_type === 'text') ? emojiCount(m.content) : 0;
+      if(ec >= 1 && ec <= 3) bub.classList.add('bigemoji');
     }
     var av = avaImg(mine ? S.me.avatar : ((S.cur && S.cur.peer_avatar) || 'ava_cat'));
     av.className = 'a';
@@ -1269,10 +1325,12 @@
 
   function fetchMessages(initial){
     if(!S.cur) return Promise.resolve([]);
-    var sel = 'id,sender_id,content,created_at,msg_type,client_msg_id';
+    /* 不再过滤 deleted_at：撤回的消息要留下来显示「XX撤回了一条消息」，
+       真正「谁都看不见」的是本地删除（message_deletions），在渲染时排除 */
+    var sel = 'id,sender_id,content,created_at,msg_type,client_msg_id,deleted_at';
     var q = initial
-      ? '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&deleted_at=is.null&order=id.desc&limit=80'
-      : '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&deleted_at=is.null&id=gt.' + S.lastId + '&order=id.asc&limit=100';
+      ? '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&order=id.desc&limit=80'
+      : '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&id=gt.' + S.lastId + '&order=id.asc&limit=100';
     return api(q).then(function(rows){
       rows = rows || [];
       var keptMap = {}, keptTail = [];
@@ -1743,21 +1801,85 @@
     node.addEventListener('contextmenu', function(e){ e.preventDefault(); fn(); });
   }
 
+  /* 撤回窗口：以「消息创建时间」算 2 分钟。客户端时间只做前置判断，
+     真正说了算的是服务端 recall_message 里的 now() 校验。 */
+  var RECALL_MS = 120000;
+
+  function canRecall(m){
+    if(!m || !m.id || m.deleted_at) return false;
+    if(m.sender_id !== S.me.id) return false;
+    var t = m.created_at ? new Date(m.created_at).getTime() : 0;
+    if(!t) return false;
+    return (Date.now() - t) < RECALL_MS;
+  }
+
   function msgMenu(wrap, m){
+    if(wrap.classList.contains('pending')){ toast('还在发送中…'); return; }
+    var items = [];
     var isPic = (m.msg_type === 'image');
     var pics = isPic ? parsePics(m.content) : null;
+
     if(wrap.classList.contains('failed')){
-      var items = [{ label: '重新发送', fn: function(){ retryMsg(wrap); } }];
-      if(!isPic) items.push({ label: '复制', fn: function(){ copyText(m.content); } });
-      openSheet(items);
-      return;
+      items.push({ label: '重新发送', fn: function(){ retryMsg(wrap); } });
     }
-    if(wrap.classList.contains('pending')){ toast('还在发送中…'); return; }
-    if(isPic && pics){
-      openSheet([{ label: '看大图', fn: function(){ openViewer(pics, 0); } }]);
-      return;
+    if(!m.deleted_at){
+      if(isPic && pics){
+        items.push({ label: '看大图', fn: function(){ openViewer(pics, 0); } });
+      } else {
+        items.push({ label: '复制', fn: function(){ copyText(m.content); } });
+      }
+      if(canRecall(m)){
+        items.push({ label: '撤回', fn: function(){ doRecall(wrap, m); } });
+      }
     }
-    openSheet([{ label: '复制', fn: function(){ copyText(m.content); } }]);
+    items.push({ label: '删除', danger: true, fn: function(){ deleteMsgLocal(wrap, m); } });
+    openSheet(items);
+  }
+
+  function paintRecalled(wrap, m){
+    var sid = (m && m.sender_id) || wrap.dataset.sender || '';
+    var mine = (sid === S.me.id);
+    var bub = wrap.querySelector('.bubble');
+    if(!bub) return;
+    bub.className = 'bubble recalled';
+    bub.innerHTML = '';
+    bub.textContent = mine ? '你撤回了一条消息' : '对方撤回了一条消息';
+  }
+
+  function doRecall(wrap, m){
+    return api('/rest/v1/rpc/recall_message', {
+      method: 'POST', body: { p_msg: Number(m.id) }
+    }).then(function(){
+      m.deleted_at = new Date().toISOString();
+      m.content = '';
+      paintRecalled(wrap, m);
+      /* 缓存里那份也要改，否则切走再回来又显示原内容 */
+      Object.keys(S.msgCache).forEach(function(cid){
+        S.msgCache[cid].rows.forEach(function(r){
+          if(String(r.id) === String(m.id)){ r.deleted_at = m.deleted_at; r.content = ''; }
+        });
+      });
+      /* 列表预览要跟着变（撤回的最后一条不该再显示原文） */
+      loadConvs().then(renderConvs).catch(function(){});
+      toast('已撤回');
+    }).catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  function deleteMsgLocal(wrap, m){
+    if(!m.id){ wrap.remove(); return Promise.resolve(); }
+    return api('/rest/v1/rpc/delete_message_local', {
+      method: 'POST', body: { p_msg: Number(m.id) }
+    }).then(function(){
+      S.deletedIds[String(m.id)] = 1;
+      delete S.ids[m.id];
+      wrap.remove();
+      Object.keys(S.msgCache).forEach(function(cid){
+        var c = S.msgCache[cid];
+        c.rows = c.rows.filter(function(r){ return String(r.id) !== String(m.id); });
+        delete c.seen[m.id];
+      });
+      toast('已删除');
+    }).catch(function(e){ toast(friendly(e && e.message)); });
   }
 
   function convMenu(c){
@@ -1770,7 +1892,42 @@
       label: c.mute ? '关闭消息免打扰' : '消息免打扰',
       fn: function(){ setFlags(c, null, !c.mute); }
     });
+    items.push({ label: '标为未读', fn: function(){ markConvUnread(c); } });
+    items.push({ label: '删除该聊天', danger: true, fn: function(){ hideConv(c); } });
     openSheet(items);
+  }
+
+  /* 标为未读：位点退到倒数第二条，交给服务端算 */
+  function markConvUnread(c){
+    delete S.readMark[c.id];       /* 别让本地「刚已读」窗口把它压回 0 */
+    return api('/rest/v1/rpc/mark_conversation_unread', {
+      method: 'POST', body: { p_conv: c.id }
+    }).then(function(){
+      return loadConvs();
+    }).then(function(){
+      renderConvs();
+      toast('已标为未读');
+    }).catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  /* 删除会话：PRD 要求「仅删本地、对方无感、收到新消息重新出现」，
+     所以记在 localStorage 里（cid -> 删除时刻），不碰服务端。 */
+  function readHidden(){
+    try{
+      var o = JSON.parse(localStorage.getItem('jw_hidden_convs') || '{}');
+      return (o && typeof o === 'object') ? o : {};
+    }catch(e){ return {}; }
+  }
+  function writeHidden(o){
+    try{ localStorage.setItem('jw_hidden_convs', JSON.stringify(o)); }catch(e){}
+  }
+  function hideConv(c){
+    var o = readHidden();
+    o[c.id] = Date.now();
+    writeHidden(o);
+    S.convs = S.convs.filter(function(x){ return x.id !== c.id; });
+    renderConvs();
+    toast('已删除（对方发新消息会重新出现）');
   }
 
   function setFlags(c, pinned, mute){
@@ -1829,17 +1986,42 @@
       /* 后台静默补拉：只取比缓存新的消息，不清屏、不闪，失败也不打扰用户 */
       return fetchMessages(false).then(function(rows){
         if(rows && rows.length){ scrollBottom(); markRead(); }
-        return rows;
+        return syncRecalled(c.id).then(function(){ return rows; });
       }).catch(function(){ return []; });
     }
     return fetchMessages(true).then(function(){
       markRead();
       startChatPoll();
       renderConvs();
+      return syncRecalled(c.id);
     }).catch(function(e){
       msgsBox.innerHTML = '';
       msgsBox.appendChild(el('div', 'time', '加载失败：' + friendly(e.message)));
     });
+  }
+
+  /* 撤回同步（轻量）：只查这个会话里 deleted_at 非空的消息 id。
+     为什么不靠增量拉取：fetchMessages(false) 用 id=gt.lastId，撤回的往往是旧消息，
+     永远落不进这个窗口，不补这一刀就会出现「对方撤回了但我这边还显示原文」。 */
+  function syncRecalled(cid){
+    if(!cid) return Promise.resolve();
+    return api('/rest/v1/messages?select=id,deleted_at&conversation_id=eq.' + cid + '&deleted_at=not.is.null')
+      .then(function(rows){
+        (rows || []).forEach(function(r){
+          var c = S.msgCache[cid];
+          if(c){
+            c.rows.forEach(function(x){
+              if(String(x.id) === String(r.id) && !x.deleted_at){
+                x.deleted_at = r.deleted_at; x.content = '';
+              }
+            });
+          }
+          if(!msgsBox) return;
+          var wrap = msgsBox.querySelector('.msg[data-id="' + r.id + '"]');
+          if(wrap && !wrap.querySelector('.bubble.recalled')) paintRecalled(wrap, null);
+        });
+      })
+      .catch(function(){});
   }
 
   function bannerUpdate(){
@@ -2154,6 +2336,93 @@
     sendBtn.addEventListener('click', doSend);
   }
 
+  /* ---------------- 表情面板（P2 / FR-308）----------------
+     行为对齐微信：点表情是「插入输入框」，不是直接发出去（可以连点拼一条）。
+     分类：最近 / 常用 / 笑脸 / 手势 / 动物 / 符号，「最近」为空时不显示该 tab。 */
+  var EMOJI = {
+    '常用': ['😀','😂','🥰','😍','😊','😭','😅','😉','🙃','😎','🤔','😴','🥳','😤','😇','😳',
+             '🤣','🥺','😶','🤗','🤩','😬','🫠','🥴'],
+    '笑脸': ['😃','😄','😁','😆','🤣','🙂','😌','🥲','😋','😛','🤪','🤨','🧐','😏','🥹','😜',
+             '😝','😗','😙','😚','🤭','🫢','😑','😐'],
+    '手势': ['👍','👎','👌','✌️','🤞','🤟','🤘','👏','🙌','🤝','🙏','💪','👋','🖐️','🤙','✊',
+             '👆','👇','👉','👈','✋','🫰','🫱','🫲'],
+    '动物': ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔',
+             '🐧','🐦','🐤','🦄','🐝','🦋','🐢','🐙'],
+    '符号': ['❤️','💔','💯','✨','🔥','⭐','🎉','🎊','💡','⚠️','❓','❗','💤','☀️','🌙','⚡',
+             '✅','❌','⭕','💢','💫','🎵','🎶','🌟']
+  };
+  var EMO_CATS = ['最近', '常用', '笑脸', '手势', '动物', '符号'];
+  var emoCat = '常用';
+
+  function recentEmos(){
+    try{
+      var a = JSON.parse(localStorage.getItem('jw_emoji_recent') || '[]');
+      return Array.isArray(a) ? a : [];
+    }catch(e){ return []; }
+  }
+  function pushRecentEmo(e){
+    var a = recentEmos().filter(function(x){ return x !== e; });
+    a.unshift(e);
+    try{ localStorage.setItem('jw_emoji_recent', JSON.stringify(a.slice(0, 16))); }catch(err){}
+  }
+
+  /* 纯 emoji 且 ≤3 个 → 返回个数，否则 0（用于大表情，B-03） */
+  function emojiCount(s){
+    s = String(s == null ? '' : s).trim();
+    if(!s) return 0;
+    try{
+      var hit = s.match(/\p{Extended_Pictographic}/gu);
+      if(!hit) return 0;
+      var rest = s.replace(/\p{Extended_Pictographic}|\uFE0F|\u200D|[\u{1F3FB}-\u{1F3FF}]|\s/gu, '');
+      return rest.length ? 0 : hit.length;
+    }catch(e){ return 0; }
+  }
+
+  function renderEmo(){
+    var tabs = $('#emoTabs'), grid = $('#emoGrid');
+    if(!tabs || !grid) return;
+    var cats = EMO_CATS.filter(function(c){ return c !== '最近' || recentEmos().length; });
+    if(cats.indexOf(emoCat) < 0) emoCat = cats[0];
+    tabs.innerHTML = '';
+    cats.forEach(function(c){
+      var t = el('div', 'et' + (c === emoCat ? ' on' : ''), c);
+      t.addEventListener('click', function(){ emoCat = c; renderEmo(); });
+      tabs.appendChild(t);
+    });
+    grid.innerHTML = '';
+    var list = (emoCat === '最近') ? recentEmos() : (EMOJI[emoCat] || []);
+    list.forEach(function(e){
+      var sp = el('span', '', e);
+      sp.addEventListener('click', function(){ insertEmoji(e); });
+      grid.appendChild(sp);
+    });
+  }
+
+  /* 插入到光标位置（不覆盖已选中的后半段），并保持焦点继续打字 */
+  function insertEmoji(e){
+    if(!inp) return;
+    var v = inp.value;
+    var s0 = inp.selectionStart, e0 = inp.selectionEnd;
+    if(typeof s0 !== 'number'){ s0 = e0 = v.length; }
+    inp.value = v.slice(0, s0) + e + v.slice(e0);
+    var pos = s0 + e.length;
+    try{ inp.selectionStart = inp.selectionEnd = pos; }catch(err){}
+    pushRecentEmo(e);
+    autoGrow(); refreshSend();
+  }
+
+  function toggleEmo(force){
+    var p = $('#emoPanel');
+    if(!p) return;
+    var on = (force === undefined) ? !p.classList.contains('on') : !!force;
+    p.classList.toggle('on', on);
+    if(on){
+      if(inp) inp.blur();          /* 收键盘，否则面板会被键盘挡住 */
+      renderEmo();
+      setTimeout(scrollBottom, 260);
+    }
+  }
+
   /* ---------------- 选图发图（P2）---------------- */
   var pickBtn = $('#btnPickImg'), filePick = $('#filePick');
   if(pickBtn && filePick){
@@ -2161,6 +2430,9 @@
       if(!S.cur){ toast('先选一个聊天'); return; }
       filePick.click();
     });
+    var emoBtn = $('#btnEmoji');
+    if(emoBtn) emoBtn.addEventListener('click', function(){ toggleEmo(); });
+    if(inp) inp.addEventListener('focus', function(){ toggleEmo(false); });
     filePick.addEventListener('change', function(e){
       var fs = e.target.files;
       var picked = fs ? Array.prototype.slice.call(fs) : [];
@@ -2495,7 +2767,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.11:27';
+    var BUILD='1029.14:11';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
