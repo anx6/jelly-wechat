@@ -486,6 +486,12 @@
   .sres .sk{font-size:10px;font-weight:800;color:var(--dim);background:var(--skel);
     border-radius:8px;padding:2px 7px;flex-shrink:0;}
   mark{background:var(--yellow);color:#1a1a2e;border-radius:4px;padding:0 2px;}
+  /* FR-902「查看更多」：不做成按钮，做成一条轻量行 —— 它只是切换 Tab，
+     做实心按钮会让用户以为还有一屏独立内容 */
+  .smore{margin:6px 12px 2px;padding:9px 12px;text-align:center;cursor:pointer;
+    font-size:12.5px;font-weight:800;color:var(--dim);
+    border:2px dashed var(--line-soft);border-radius:13px;background:transparent;}
+  .smore:active{background:var(--card2);}
 
   /* ---------- 扫一扫（FR-701） ---------- */
   .scanwrap{position:relative;margin:10px 12px;border:3px solid var(--ink);border-radius:20px;
@@ -753,7 +759,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1029.20:38';
+window.__BUILD = '1029.20:43';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -791,7 +797,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.20:38</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.20:43</div>
         </div>
       </div>
     </section>
@@ -1245,7 +1251,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.20:38</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.20:43</div>
       </div>
     </section>
 
@@ -1405,7 +1411,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.20:38</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.20:43</div>
       </div>
     </section>
 
@@ -2085,7 +2091,14 @@ try{
   }
 
   function refreshAll(){
-    return Promise.all([loadConvs(), loadFriends(), loadRequests(), loadDeletions()]).then(function(){
+    /* 黑名单在启动时就拉一次：直聊的消息过滤（dropBlockedMsgs）依赖它。
+       等用户点进设置页才加载的话，被拉黑的人发的消息会先冒出来一次再消失。
+       p3g 没跑时 loadBlocked 会 404，noPrivacy 一旦锁死后续不再发请求，
+       这里 catch 掉即可，不影响会话列表。 */
+    var pBlock = loadBlocked()
+      .then(function(list){ S.blockedList = list || []; })
+      .catch(function(){ S.blockedList = S.blockedList || []; });
+    return Promise.all([loadConvs(), loadFriends(), loadRequests(), loadDeletions(), pBlock]).then(function(){
       renderConvs(); renderFriends(); renderRequests(); renderMe();
     });
   }
@@ -2103,6 +2116,12 @@ try{
       : '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&id=gt.' + S.lastId + '&order=id.asc&limit=100';
     return api(q).then(function(rows){
       rows = rows || [];
+      /* FR-806：直聊里被我拉黑的人的新消息不显示（拉黑之前的历史保留）。
+         必须在这里过滤而不是渲染时过滤 —— 下面还要写进会话缓存和 S.lastId，
+         在渲染层挡的话这些消息仍会被缓存，下次进会话又从缓存里冒出来。 */
+      if(S.blockedList && S.blockedList.length && S.cur && S.cur.ctype !== 'group'){
+        rows = dropBlockedMsgs(rows, blockMap(S.blockedList), true);
+      }
       var keptMap = {}, keptTail = [];
       if(rows.length && rows[0].mentions === undefined) S.mentionsOff = true;
       if(initial){
@@ -3221,6 +3240,74 @@ try{
   function filterSearch(rows, tab){
     if(!tab || tab === 'all') return rows || [];
     return (rows || []).filter(function(r){ return r && r.kind === tab; });
+  }
+
+  /* FR-902 聚合视图：每类最多 3 条 + 「查看更多」。
+     「全部」Tab 下不铺全部结果 —— 关键词一旦命中几十条聊天记录，
+     联系人和群就会被挤到下面，用户以为没找到人。
+     所以每类先给 3 条，剩下的靠「查看更多」跳进对应 Tab（那里不再截断）。 */
+  var SEARCH_PREVIEW = 3;
+
+  function searchPreview(rows, tab, n){
+    n = (n === undefined || n === null) ? SEARCH_PREVIEW : n;
+    var groups = groupSearch(filterSearch(rows, tab));
+    /* 单 Tab 下用户已经自己筛过了，再截断就等于藏结果，不截 */
+    if(tab && tab !== 'all'){
+      return groups.map(function(g){
+        return { kind: g.kind, label: g.label, total: g.list.length, list: g.list, more: 0 };
+      });
+    }
+    return groups.map(function(g){
+      return {
+        kind: g.kind,
+        label: g.label,
+        total: g.list.length,
+        list: g.list.slice(0, n),
+        more: Math.max(0, g.list.length - n)
+      };
+    });
+  }
+
+  /* ================= 拉黑的消息过滤（FR-806 后半段） =================
+     为什么在**读取侧**过滤，而不是在 send_message 里拒绝插入：
+       发送侧拒绝就只能靠 RPC 报错表达，气泡会变成红色感叹号 ——
+       等于直接告诉对方「你被拉黑了」。微信的语义是**静默**：
+       对方以为自己发出去了，只是我这边收不到。
+       所以消息照常入库（发送方自己的历史完整），只在拉黑方的读取侧丢弃。
+
+     为什么按 blocks.created_at 而不是一刀切全丢：
+       拉黑之前的聊天记录要留着（微信也保留），只拦拉黑之后的新消息。
+
+     已知残留：未读数由服务端 list_conversations 统计，会把这些被丢弃的
+     消息算进去，所以可能出现「角标 +1 但打开看不到新消息」。要彻底对齐
+     得给 messages 建 RLS 或改成走 RPC 读取，属于另一摊改造，先记着。 */
+  function blockMap(list){
+    var m = {};
+    (list || []).forEach(function(b){
+      if(b && b.userId) m[String(b.userId)] = b.at || '';
+    });
+    return m;
+  }
+
+  function isBlockedOut(cid, bmap){
+    if(!cid || !bmap) return false;
+    return Object.prototype.hasOwnProperty.call(bmap, String(cid));
+  }
+
+  /* 返回过滤后的新数组，不改入参。isDirect 为假（群聊）时原样返回 ——
+     拉黑在群里不生效，不然一条拉黑就把群里别人说的话也一起吞了。 */
+  function dropBlockedMsgs(msgs, bmap, isDirect){
+    var arr = msgs || [];
+    if(!isDirect || !bmap || !Object.keys(bmap).length) return arr;
+    return arr.filter(function(m){
+      if(!m || !isBlockedOut(m.sender_id, bmap)) return true;
+      var at = bmap[String(m.sender_id)];
+      if(!at) return false;                       /* 没给时间的当作全程拉黑 */
+      var t1 = Date.parse(m.created_at || '');
+      var t2 = Date.parse(at);
+      if(isNaN(t1) || isNaN(t2)) return false;     /* 时间解析不出来时偏保守：藏起来 */
+      return t1 < t2;                              /* 拉黑之前的照常显示 */
+    });
   }
 
   /* ================= QR 二维码（P3-7） =================
@@ -5416,13 +5503,19 @@ try{
       return;
     }
 
-    var groups = groupSearch(rows);
+    /* FR-902：「全部」Tab 下每类最多 3 条，剩下的给「查看更多」跳对应 Tab */
+    var groups = searchPreview(S.searchRes, S.searchTab);
     groups.forEach(function(g){
       /* 单 Tab 下已经有 Tab 本身在提示类型，再加分组标题就是重复信息 */
       if(S.searchTab === 'all'){
-        box.appendChild(el('div', 'sgrp', g.label + ' · ' + g.list.length));
+        box.appendChild(el('div', 'sgrp', g.label + ' · ' + g.total));
       }
       g.list.forEach(function(r){ box.appendChild(searchRow(r, S.searchKey)); });
+      if(g.more){
+        var m = el('div', 'smore', '查看更多' + g.label + '（还有 ' + g.more + ' 条）›');
+        m.setAttribute('data-more', g.kind);
+        box.appendChild(m);
+      }
     });
   }
 
@@ -7232,7 +7325,17 @@ try{
   });
   /* 结果行是每次重渲染重建的，所以用事件委托绑在容器上，不逐行绑 */
   bind('#searchBody', 'click', function(e){
-    var n = e.target && e.target.closest ? e.target.closest('.sres') : null;
+    var t = e.target;
+    if(!t || !t.closest) return;
+    /* FR-902「查看更多」：只是切到对应 Tab，不是翻页加载 —— 数据本来就全在手里 */
+    var more = t.closest('.smore');
+    if(more){
+      switchSearchTab(more.getAttribute('data-more'));
+      var b = $('#searchBody');
+      if(b) b.scrollTop = 0;
+      return;
+    }
+    var n = t.closest('.sres');
     if(n) openSearchHit(n);
   });
 
@@ -8307,7 +8410,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.20:38';
+    var BUILD='1029.20:43';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
