@@ -297,6 +297,8 @@
   .post.detail .ptext{font-size:14.5px;}
   .post.detail .pgrid{max-width:100%;}
   .post.detail .pbox{background:var(--card2);}
+  /* 详情页底部有评论输入条，留出空间否则最后一条评论会被挡住 */
+  .screen[data-screen="momentdetail"] .body{padding-bottom:76px;}
   /* 相册封面选择 */
   .cvwrap{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px 16px;}
   .cvcell{aspect-ratio:1;border:3px solid var(--ink);border-radius:12px;overflow:hidden;background:var(--card2);cursor:pointer;}
@@ -537,7 +539,9 @@
   html.dark .search{box-shadow:4px 4px 0 #00000055;}
   /* 亮色实心底的控件（发送、复制果冻号、选中的表情分类）在深色下必须保持深字：
      它们的底色是黄的/绿的，跟着 --ink 变浅会直接看不见 */
-  html.dark .send,html.dark .jcopy,html.dark .emotabs .et.on{color:#1a1a2e;}
+  html.dark .send,html.dark .jcopy,html.dark .emotabs .et.on,html.dark .lcbtn{color:#1a1a2e;}
+  /* 上面那条要压过按钮自身的 color，所以禁用态必须用更高的特异性写回来 */
+  html.dark .send:disabled,html.dark .lcbtn:disabled{color:var(--dim);}
   html.dark .msg.out .bubble,html.dark .lbtn,html.dark .lsw.on{color:#fff;}
   /* 登录页：本来是粉黄蓝的浅渐变，深色下换成同色的夜间版；
      标题是「白字 + 8 向描边」，描边用 var(--ink) 会跟着变浅糊成一团，这里钉死深色 */
@@ -583,7 +587,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.18:30</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.18:38</div>
         </div>
       </div>
     </section>
@@ -944,7 +948,7 @@ try{
         <div class="card">
           <div class="cell" id="setClearCache"><div class="chip" style="background:var(--lime)">🧹</div><div class="nm">清除本地缓存</div><div class="mv">聊天记录缓存</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.18:30</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.18:38</div>
       </div>
     </section>
 
@@ -975,7 +979,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.18:30</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.18:38</div>
       </div>
     </section>
 
@@ -2594,6 +2598,13 @@ try{
           if(m.created_at) S.lastAt = m.created_at;
         }
         if(m.msg_type === 'image') swapPicSrc(ex, m.content);
+        /* 语音同理：乐观节点里存的是 blob: 本地地址，服务端回来的是远端地址。
+           不换的话，这条语音在本次会话里能播（blob 还在），重开页面就播不了。 */
+        if(m.msg_type === 'voice'){
+          var vb = ex.querySelector('.bubble');
+          var pv = parseVoice(m.content);
+          if(vb && pv && pv.url) vb.dataset.url = pv.url;
+        }
         return ex;
       }
     }
@@ -3433,7 +3444,9 @@ try{
 
     var nm = el('div', 'pname', m.nickname);
     nm.addEventListener('click', function(){
-      if(!m.mine) openMomentsOf(m.author_id, m.nickname, m.avatar);
+      /* 点自己的名字 = 进自己的相册（微信同款），点别人的进对方相册 */
+      if(m.mine) return openMyAlbum();
+      openMomentsOf(m.author_id, m.nickname, m.avatar);
     });
     pbody.appendChild(nm);
 
@@ -5155,15 +5168,16 @@ try{
     ]);
   }
 
-  /* 清本地缓存：只清「消息缓存 / 已读标记 / 隐藏会话」这些可重建的东西，
-     登录态和草稿不动 —— 清了就得重新登录，那不是「清缓存」是「登出」。 */
+  /* 清本地缓存：只清「消息缓存 / 表情最近使用」这些能重建的东西。
+     注意别清 jw_hidden_convs（那是用户主动删掉的会话，清了会全部长回来），
+     也别碰 jw_sess（清了等于登出）。消息缓存本来就只在内存里，不落 localStorage。 */
   function clearLocalCache(){
     openSheet([{ label: '确定清除（不会退出登录）', danger: true, fn: function(){
-      S.msgCache = {}; S.readMark = {}; S.deletedIds = {};
-      try{
-        localStorage.removeItem('jw_cache');
-        localStorage.removeItem('jw_hidden_convs');
-      }catch(e){}
+      S.msgCache = {};
+      S.readMark = {};
+      S.deletedIds = {};
+      try{ localStorage.removeItem('jw_emoji_recent'); }catch(e){}
+      emoCat = '常用';
       toast('缓存清掉了');
     } }]);
   }
@@ -5435,7 +5449,8 @@ try{
 
   /* FR-1004：切后台再回来，立即补拉，不等下一轮轮询 */
   document.addEventListener('visibilitychange', function(){
-    if(document.hidden) return;
+    /* 录音时切后台 / 来电：立刻收掉，别在后台一直录着（免得上行和麦克风被占住） */
+    if(document.hidden){ if(S.rec) cancelRec(); return; }
     if(!S.sess) return;
     var jobs = [];
     if(S.screen === 'chatdetail' && S.cur){
@@ -5532,7 +5547,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.18:30';
+    var BUILD='1029.18:38';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
