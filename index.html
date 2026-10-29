@@ -524,14 +524,17 @@
   html.dark .recbar{background:#0d0b12e8;}
   html.dark .toast{background:rgba(240,235,250,.95);color:#15131c;}
   html.dark .viewer{background:#000;}
-  html.dark .cover{filter:saturate(.85);}
-  html.dark .mehead{filter:saturate(.8) brightness(.92);}
+  html.dark .cover{filter:brightness(.72) saturate(.85);}
+  html.dark .mehead{filter:saturate(.72) brightness(.72);}
   html.dark .pgrid div img{background:var(--card2);}
   html.dark .lcard,html.dark .mpwrap{box-shadow:4px 4px 0 #00000055;}
   html.dark .row{box-shadow:5px 5px 0 #00000055;}
+  html.dark .card{box-shadow:4px 4px 0 #00000055;}
+  html.dark .stat{box-shadow:3px 3px 0 #00000055;}
+  html.dark .catchip,html.dark .chip{box-shadow:2px 2px 0 #00000055;}
   html.dark .ico-btn,html.dark .back{box-shadow:3px 3px 0 #00000055;}
   html.dark .ico-btn:active,html.dark .back:active{box-shadow:0 0 0 #0000;}
-  html.dark .chip{box-shadow:2px 2px 0 #00000055;}
+  html.dark .search{box-shadow:4px 4px 0 #00000055;}
 </style>
 <!-- 主题要在首帧之前定下来，否则深色用户会先看到一屏亮白再变黑（FOUC） -->
 <script>
@@ -569,7 +572,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.18:18</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.18:24</div>
         </div>
       </div>
     </section>
@@ -930,7 +933,7 @@ try{
         <div class="card">
           <div class="cell" id="setClearCache"><div class="chip" style="background:var(--lime)">🧹</div><div class="nm">清除本地缓存</div><div class="mv">聊天记录缓存</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.18:18</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.18:24</div>
       </div>
     </section>
 
@@ -961,7 +964,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.18:18</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.18:24</div>
       </div>
     </section>
 
@@ -3362,12 +3365,12 @@ try{
       ava.setAttribute('data-k', pickKey(me ? me.avatar : S.me.avatar));
     }
 
-    /* 封面：只有「我的相册」有自己的封面图（moment_cover 存在自己 profiles 上）。
-       别人的相册拿不到封面（list_moments 不返回作者的 cover），继续用渐变 —— 
-       为此专门再发一次请求不值。 */
+    /* 封面：时间线和「我的相册」用的都是**我自己的**封面（那就是我的朋友圈封面），
+       只有看别人的相册时拿不到对方的 cover（list_moments 不返回作者的 cover），
+       继续用渐变 —— 为此专门再发一次请求不值。 */
     var cover = $('#momentCover');
     if(cover){
-      var url = (S.momentSelf && S.momentCover) ? S.momentCover : '';
+      var url = (!me || S.momentSelf) ? (S.momentCover || '') : '';
       if(url){
         cover.classList.add('has-img');
         cover.style.backgroundImage = 'linear-gradient(#0000,#0000), url("' + url + '")';
@@ -5518,7 +5521,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.18:18';
+    var BUILD='1029.18:24';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
