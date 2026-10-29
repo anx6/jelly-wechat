@@ -403,7 +403,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.16:22</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.16:44</div>
         </div>
       </div>
     </section>
@@ -713,7 +713,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.16:22</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.16:44</div>
       </div>
     </section>
 
@@ -742,22 +742,40 @@
 
 <script>
   /* =====================================================================
-     果冻微信 · P1「通讯可用化」
-     后端：Supabase（Auth 登录 / Postgres 数据 / RLS 行级权限 / RPC 业务）
-     传输：HTTPS REST + 轮询（不用 WebSocket，网络穿透性最好；切回前台自动补拉）
-
-     P1 相对 v0 的变化：
-       1. 从「一个房间」升级为「加好友 + 多会话」
-       2. 发消息带 client_msg_id，服务端幂等，重发不会产生重复消息
-       3. 会话列表改由 list_conversations() 一次取全，消灭前端 4 次并发 + 客户端聚合
-       4. 补齐：时间分组、置顶、免打扰、离线细条、长按复制、消息时间分割
+     源码已拆分到 src/ 下，构建时由 build_app.py 按顺序内联到这里：
+       src/core.js   → 常量 / S / DOM 工具 / 存储 / Token
+       src/api.js    → api() 与所有 RPC 数据访问
+       src/logic.js  → 纯函数（时间、预览、分组、解析、判定）
+       src/view.js    → 所有 render* / 弹层 / DOM
+       src/app.js    → 业务流转 / 事件绑定 / 轮询 / 启动
+     五个文件共享同一作用域，等价于原来的单脚本。
      ===================================================================== */
+
+/* =====================================================================
+   果冻微信 · CORE
+   常量 / 全局状态 S / DOM 工具 / 本地存储 / 会话 Token
+   ---------------------------------------------------------------------
+   构建时由 build_app.py 按 core → api → logic → view → app 顺序内联到
+   index.html 的同一个 <script> 里，因此五个文件共享同一个作用域，
+   函数之间可以直接互相调用（没有 import/export）。
+   ===================================================================== */
+
   var SUPA = { url: 'https://paszthpmwmnvizwwqizp.supabase.co', key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhc3p0aHBtd21udml6d3dxaXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxNzAyMjYsImV4cCI6MjEwODc0NjIyNn0.7h8b1sgLvzdULa2J9bEjKS-Q2cLq434puRNDw9BigiI' };
 
   var TABS = { chat:'chats', contacts:'contacts', discover:'discover', me:'me' };
+
   /* 可选头像：与 build_app.py 注入的 IMG key 一一对应 */
   var PRESET = ['ava_hero','ava_cat','ava_robot','ava_mom','ava_group','ava_courier'];
+
   var curTab = 'chat', returnTo = null, backTo = null;
+
+  /* 图片消息的尺寸/质量上限（FR-303）。
+     原本写在 view.js 里，但 compressPic 在 logic 层要用——分层方向反了，
+     常量属于 core，两个上层都能读。 */
+  var PIC_MAX = 9,                /* 一次最多选几张 */
+      PIC_SIDE = 1600,            /* 长边压到多少 px */
+      PIC_Q = 0.82,               /* 首轮 JPEG 质量 */
+      PIC_LIMIT = 500 * 1024;     /* 超过这个体积再降质到 0.6 */
 
   var S = {
     sess: null,
@@ -790,12 +808,17 @@
 
   /* ---------------- 基础工具 ---------------- */
   function $(s){ return document.querySelector(s); }
+
   function $$(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
+
   function el(t, c, x){ var e = document.createElement(t); if(c) e.className = c; if(x != null) e.textContent = x; return e; }
+
   function store(k, v){
     try{ if(v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); }catch(e){ return null; }
   }
+
   function unstore(k){ try{ localStorage.removeItem(k); }catch(e){} }
+
   function pad2(n){ return ('0' + n).slice(-2); }
 
   function uuid(){
@@ -817,6 +840,7 @@
      原来每条消息都调用 window.__fillImg()，它是 document.querySelectorAll('[data-k]') 全量扫描；
      会话进得多（缓存可达 200 条）时就变成 200 次全扫（O(n²)），进会话瞬间主线程被占住。
      iOS 上滚动由合成线程负责、点击必须等主线程，所以表现就是「能上下滑，但点哪儿都没反应」。 */
+
   function fillImgIn(node){
     if(!node || !node.querySelectorAll) return;
     var imgs = window.IMG || {};
@@ -828,11 +852,13 @@
       if(u) e.setAttribute('src', u);
     }
   }
+
   function pickKey(k){
     var imgs = window.IMG || {};
     if(k && imgs[k]) return k;
     return imgs['ava_hero'] ? 'ava_hero' : 'ava_cat';
   }
+
   function maskEmail(m){
     m = String(m || '');
     var at = m.indexOf('@');
@@ -842,6 +868,7 @@
 
   /* ---------------- toast ---------------- */
   var toastEl = null;
+
   function toast(msg, ms){
     if(!toastEl){ toastEl = document.createElement('div'); toastEl.className = 'toast'; document.body.appendChild(toastEl); }
     toastEl.textContent = msg; toastEl.classList.add('on');
@@ -859,13 +886,16 @@
       return JSON.parse(new TextDecoder().decode(arr));
     }catch(e){ return null; }
   }
+
   function loadSess(){
     try{ S.sess = JSON.parse(store('jw_sess') || 'null'); }catch(e){ S.sess = null; }
   }
+
   function saveSess(s){
     S.sess = s;
     if(s) store('jw_sess', JSON.stringify(s)); else unstore('jw_sess');
   }
+
   function applyAuth(d){
     var pay = jwtPay(d.access_token) || {};
     saveSess({
@@ -875,6 +905,7 @@
       user: { id: (d.user && d.user.id) || pay.sub, email: (d.user && d.user.email) || pay.email || '' }
     });
   }
+
   function tokenOK(){ return S.sess && S.sess.exp * 1000 > Date.now() + 90000; }
 
   function ensureToken(){
@@ -892,6 +923,85 @@
       });
     });
   }
+
+  function friendly(msg){
+    var m = String(msg || '');
+    if(/Invalid login credentials/i.test(m)) return '邮箱或密码不对哦～';
+    if(/already registered|already exists|User already/i.test(m)) return '这个邮箱注册过啦，切到「登录」';
+    if(/at least 6 characters|Password should/i.test(m)) return '密码至少 6 位哦';
+    if(/valid email|invalid format|Invalid email/i.test(m)) return '邮箱格式好像不对';
+    if(/not confirmed/i.test(m)) return '邮箱还没确认，去收件箱点一下链接';
+    if(/rate limit|too many|429/i.test(m)) return '试太多次啦，等一分钟再来';
+    if(/Failed to fetch|NetworkError|load failed/i.test(m)) return '连不上服务器，检查下网络';
+    if(/请求超时|AbortError/i.test(m)) return '网络不太稳，稍等再试';
+    if(/房间码不存在|P0001/i.test(m)) return '邀请码不对，再核对一下';
+    if(/NO_SESSION/i.test(m)) return '登录过期了，重新登录一下';
+    if(/还没注册果冻微信/i.test(m)) return '这个邮箱还没注册，让对方先注册';
+    if(/消息太长/i.test(m)) return '消息太长了，最多 2000 字';
+    if(/消息不能为空/i.test(m)) return '说点什么再发吧';
+    if(/不是这个会话的成员/i.test(m)) return '你不在这个会话里';
+    if(/超过 2 分钟|超过2分钟/i.test(m)) return '超过 2 分钟了，撤不回来';
+    /* 兜底：约束冲突 / 函数签名不符 / 列不存在这类数据库原始错误，
+       原文是给开发者看的（形如 Failing row contains (...)），
+       直接弹给用户等于报错信息泄漏 + 完全看不懂。原文打到控制台便于排查。 */
+    if(/Failing row contains|violates|constraint|23514|22P02|23503|42P01|PGRST|permission denied/i.test(m)){
+      try{ console.warn('[db]', m); }catch(e){}
+      return '操作没成功，稍后再试一下';
+    }
+    return m;
+  }
+
+  var RECALL_MS = 120000;
+
+  function readHidden(){
+    try{
+      var o = JSON.parse(localStorage.getItem('jw_hidden_convs') || '{}');
+      return (o && typeof o === 'object') ? o : {};
+    }catch(e){ return {}; }
+  }
+
+  function writeHidden(o){
+    try{ localStorage.setItem('jw_hidden_convs', JSON.stringify(o)); }catch(e){}
+  }
+
+  function copyText(t){
+    function fallback(){
+      var ta = document.createElement('textarea');
+      ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      var done = false;
+      try{ done = document.execCommand('copy'); }catch(e){ done = false; }
+      document.body.removeChild(ta);
+      toast(done ? '已复制' : '复制失败，长按文字手动选');
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(function(){ toast('已复制'); }).catch(fallback);
+    }else fallback();
+  }
+
+  var EMOJI = {
+    '常用': ['😀','😂','🥰','😍','😊','😭','😅','😉','🙃','😎','🤔','😴','🥳','😤','😇','😳',
+             '🤣','🥺','😶','🤗','🤩','😬','🫠','🥴'],
+    '笑脸': ['😃','😄','😁','😆','🤣','🙂','😌','🥲','😋','😛','🤪','🤨','🧐','😏','🥹','😜',
+             '😝','😗','😙','😚','🤭','🫢','😑','😐'],
+    '手势': ['👍','👎','👌','✌️','🤞','🤟','🤘','👏','🙌','🤝','🙏','💪','👋','🖐️','🤙','✊',
+             '👆','👇','👉','👈','✋','🫰','🫱','🫲'],
+    '动物': ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔',
+             '🐧','🐦','🐤','🦄','🐝','🦋','🐢','🐙'],
+    '符号': ['❤️','💔','💯','✨','🔥','⭐','🎉','🎊','💡','⚠️','❓','❗','💤','☀️','🌙','⚡',
+             '✅','❌','⭕','💢','💫','🎵','🎶','🌟']
+  };
+
+  var EMO_CATS = ['最近', '常用', '笑脸', '手势', '动物', '符号'];
+
+/* =====================================================================
+   果冻微信 · API
+   网络层：api() 通用请求 + 所有 RPC 数据访问
+   ---------------------------------------------------------------------
+   构建时由 build_app.py 按 core → api → logic → view → app 顺序内联到
+   index.html 的同一个 <script> 里，因此五个文件共享同一个作用域，
+   函数之间可以直接互相调用（没有 import/export）。
+   ===================================================================== */
 
   /* ---------------- 通用请求（带超时）---------------- */
   function api(path, opt){
@@ -946,37 +1056,12 @@
       });
     });
   }
-  function friendly(msg){
-    var m = String(msg || '');
-    if(/Invalid login credentials/i.test(m)) return '邮箱或密码不对哦～';
-    if(/already registered|already exists|User already/i.test(m)) return '这个邮箱注册过啦，切到「登录」';
-    if(/at least 6 characters|Password should/i.test(m)) return '密码至少 6 位哦';
-    if(/valid email|invalid format|Invalid email/i.test(m)) return '邮箱格式好像不对';
-    if(/not confirmed/i.test(m)) return '邮箱还没确认，去收件箱点一下链接';
-    if(/rate limit|too many|429/i.test(m)) return '试太多次啦，等一分钟再来';
-    if(/Failed to fetch|NetworkError|load failed/i.test(m)) return '连不上服务器，检查下网络';
-    if(/请求超时|AbortError/i.test(m)) return '网络不太稳，稍等再试';
-    if(/房间码不存在|P0001/i.test(m)) return '邀请码不对，再核对一下';
-    if(/NO_SESSION/i.test(m)) return '登录过期了，重新登录一下';
-    if(/还没注册果冻微信/i.test(m)) return '这个邮箱还没注册，让对方先注册';
-    if(/消息太长/i.test(m)) return '消息太长了，最多 2000 字';
-    if(/消息不能为空/i.test(m)) return '说点什么再发吧';
-    if(/不是这个会话的成员/i.test(m)) return '你不在这个会话里';
-    if(/超过 2 分钟|超过2分钟/i.test(m)) return '超过 2 分钟了，撤不回来';
-    /* 兜底：约束冲突 / 函数签名不符 / 列不存在这类数据库原始错误，
-       原文是给开发者看的（形如 Failing row contains (...)），
-       直接弹给用户等于报错信息泄漏 + 完全看不懂。原文打到控制台便于排查。 */
-    if(/Failing row contains|violates|constraint|23514|22P02|23503|42P01|PGRST|permission denied/i.test(m)){
-      try{ console.warn('[db]', m); }catch(e){}
-      return '操作没成功，稍后再试一下';
-    }
-    return m;
-  }
 
   function signIn(mail, pw){
     return authPost('/auth/v1/token?grant_type=password', { email: mail, password: pw })
       .then(function(d){ applyAuth(d); return d; });
   }
+
   function signUp(mail, pw){
     return authPost('/auth/v1/signup', { email: mail, password: pw }).then(function(d){
       if(d && d.access_token){ applyAuth(d); return d; }
@@ -1050,6 +1135,7 @@
   /* 「新的朋友」= 收到的申请（incoming_requests）+ 我发出的申请（outgoing_requests）。
      后者让用户能看到对方到底通过了没有，而不是永远停在「已申请，等通过」。
      outgoing_requests 还没部署时静默降级，只显示收到的。 */
+
   function loadRequests(){
     var pOut = S.noOutReq
       ? Promise.resolve([])
@@ -1084,6 +1170,297 @@
       renderConvs(); renderFriends(); renderRequests(); renderMe();
     });
   }
+
+  function fetchMessages(initial, retried){
+    if(!S.cur) return Promise.resolve([]);
+    /* 不再过滤 deleted_at：撤回的消息要留下来显示「XX撤回了一条消息」，
+       真正「谁都看不见」的是本地删除（message_deletions），在渲染时排除。
+       mentions 是 P2-5 才加的列：数据库还没跑迁移时查它会整条 400，
+       那会把聊天功能一起拖挂，所以探测失败后永久降级为不查该列。 */
+    var selBase = 'id,sender_id,content,created_at,msg_type,client_msg_id,deleted_at';
+    var sel = S.noMentions ? selBase : (selBase + ',mentions');
+    var q = initial
+      ? '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&order=id.desc&limit=80'
+      : '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&id=gt.' + S.lastId + '&order=id.asc&limit=100';
+    return api(q).then(function(rows){
+      rows = rows || [];
+      var keptMap = {}, keptTail = [];
+      if(rows.length && rows[0].mentions === undefined) S.mentionsOff = true;
+      if(initial){
+        rows.reverse();
+        /* 竞态保护：本请求发出后用户可能已经开始发消息，这些节点在服务端响应里
+           可能还没有（请求早于入库发出），直接 innerHTML='' 会永久删除它们。
+           注意选择器**不能只取 .msg.pending**：一条消息可能「已经发送成功（pending 类已移除）
+           但 initial 响应里没有它」，那种节点同样会被抹掉——这正是「消息发出去了却看不见」。
+           所以凡本地乐观产生的节点（带 data-client）一律先留着，等服务端行回来再就地升级。 */
+        Array.prototype.forEach.call(msgsBox.querySelectorAll('.msg[data-client]'), function(n){
+          keptMap[n.dataset.client] = n;
+        });
+        Array.prototype.forEach.call(msgsBox.querySelectorAll('.msg.pending:not([data-client])'), function(n){
+          keptTail.push(n);
+        });
+        msgsBox.innerHTML = '';
+        S.lastId = 0; S.ids = {}; S.lastShownAt = 0;
+        if(!rows.length && !keptTail.length && !Object.keys(keptMap).length){
+          msgsBox.appendChild(el('div', 'time', '还没有消息，说句话打破沉默吧 ✧'));
+        }
+      }
+      var added = 0;
+      /* 写入会话缓存（只存服务端已确认的消息，供下次进会话秒开） */
+      if(S.cur && S.cur.id){
+        rows.forEach(function(m){ cachePut(S.cur.id, m); });
+        cacheOf(S.cur.id).used = Date.now();
+      }
+      rows.forEach(function(m){
+        /* 服务端已回包、本地仍挂着「发送中」节点 → 复用该节点就地升级 */
+        if(initial && m.client_msg_id && keptMap[m.client_msg_id]){
+          var reuse = keptMap[m.client_msg_id];
+          delete keptMap[m.client_msg_id];
+          if(m.id){ reuse.dataset.id = m.id; S.ids[m.id] = 1; if(m.id > S.lastId) S.lastId = m.id; }
+          reuse.classList.remove('pending');
+          reuse.classList.remove('failed');
+          if(m.msg_type === 'image') swapPicSrc(reuse, m.content);
+          msgsBox.appendChild(reuse);
+          added++;
+          return;
+        }
+        var n = addMsg(m, !initial, false);
+        if(n) added++;
+      });
+      /* 仍未出现在服务端结果里的气泡挂回尾部（原节点，deliver 后续改 class 依然生效）。
+         判定用 id 比较而不是「是否发送成功」：
+           · 还在飞（没有 id）           → 挂回
+           · 已成功但比本次结果更新（initial 请求早于它发出）→ 挂回
+           · 比本次结果更早的旧历史（被 80 条窗口截掉）      → 丢弃，否则时间顺序会乱 */
+      var maxRowId = rows.length ? Number(rows[rows.length - 1].id) : 0;
+      keptTail.concat(Object.keys(keptMap).map(function(k){ return keptMap[k]; })).forEach(function(n){
+        var lid = Number(n.dataset.id || 0);
+        if(lid && lid <= maxRowId) return;
+        msgsBox.appendChild(n);
+        added++;
+      });
+      if(rows.length) S.lastAt = rows[rows.length - 1].created_at;
+      if(added) scrollBottom();
+      return rows;
+    }).catch(function(e){
+      /* 400/404 多半是列不存在（迁移没跑）。降级重试一次，别让新功能把老功能带崩。 */
+      if(!retried && !S.noMentions && e && (e.status === 400 || e.status === 404)){
+        S.noMentions = true;
+        return fetchMessages(initial, true);
+      }
+      throw e;
+    });
+  }
+
+  /* ---------------- 发送（幂等 + 超时 + 重发）---------------- */
+  function postMessage(cid, text, clientId, type, mentions){
+    var body = { p_conv: cid, p_content: text, p_client_id: clientId, p_type: type || 'text' };
+    /* 只有真的 @ 到人才带这个参数，普通文本消息保持原样 */
+    if(mentions && mentions.length) body.p_mentions = mentions;
+    return api('/rest/v1/rpc/send_message', {
+      method: 'POST',
+      timeout: 15000,
+      body: body
+    }).then(function(res){
+      var row = (res && res[0]) || null;
+      if(!row) throw new Error('发送失败，请重试');
+      return row;
+    }).catch(function(e){
+      /* 数据库还是旧版 send_message（没有 p_mentions 形参）时会 PGRST202/404。
+         退一步去掉这个参数重发：@ 提示丢了，但消息必须发得出去。 */
+      if(body.p_mentions && e && (e.status === 404 || e.status === 400)){
+        S.mentionsOff = true;
+        delete body.p_mentions;
+        return api('/rest/v1/rpc/send_message', { method: 'POST', timeout: 15000, body: body })
+          .then(function(res){
+            var row = (res && res[0]) || null;
+            if(!row) throw new Error('发送失败，请重试');
+            return row;
+          });
+      }
+      throw e;
+    });
+  }
+
+  /* ---------------- 图片消息（P2 / FR-303）----------------
+     链路：选图 → canvas 压缩（长边 1600，质量 0.82，超 500KB 二次降质）
+          → 传到 Storage 公开桶 chat-media → 拿公网 URL → send_message(type=image)
+     content 存 JSON 数组（一条消息含多张图，与微信「一次发 9 张 = 一条消息」一致）。
+     乐观渲染先用 blob: URL 顶上，避免先空白再闪现。 */
+
+  function uploadPic(cid, blob){
+    var path = cid + '/' + uuid() + '.jpg';
+    return ensureToken().then(function(tok){
+      return fetch(SUPA.url + '/storage/v1/object/chat-media/' + path, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPA.key,
+          'Authorization': 'Bearer ' + tok,
+          'Content-Type': 'image/jpeg',
+          'cache-control': 'max-age=31536000'
+        },
+        body: blob
+      }).then(function(r){
+        if(r.ok) return SUPA.url + '/storage/v1/object/public/chat-media/' + path;
+        return r.text().then(function(t){
+          var e = new Error('图片上传失败（' + r.status + '）');
+          e.status = r.status; e.data = t;
+          throw e;
+        });
+      });
+    });
+  }
+
+  function sendText(text){
+    if(!S.cur) return;
+    var cid = S.cur.id;
+    var key = uuid();
+    var mnt = extractMentions(text, gMembers);
+    var node = addMsg({ sender_id: S.me.id, content: text, created_at: new Date().toISOString(),
+                        client_msg_id: key, mentions: mnt }, true, true);
+    if(!node) return;
+    S.pending[key] = { text: text, cid: cid, mentions: mnt };
+    delete S.ids['c:' + key];
+    scrollBottom();
+    deliver(key, node, text, cid);
+  }
+
+  /* ---------------- 已读（FR-202）---------------- */
+  function markRead(){
+    if(!S.cur) return Promise.resolve();
+    var uid = S.sess.user.id, cid = S.cur.id;
+    /* 本地先清，保证立刻不显示角标；再把 last_read_at 写回服务端 */
+    S.cur.unread = 0;
+    S.convs.forEach(function(c){ if(c.id === cid) c.unread = 0; });
+    /* 记下「这个会话本地已读」的时间窗口：返回列表时不再等服务端写回，
+       但紧接着的 loadConvs 会带回还没更新的 unread，用这个标记压住，避免角标回闪 */
+    S.readMark[cid] = Date.now();
+    updateTabDot();
+    /* 关键：已读位点必须用「最后一条消息的服务器时间」，不能用手机本地时钟。
+       本地时钟比服务器慢几秒时，用 new Date() 会让最后一条消息永远算未读。 */
+    var at = S.lastAt || (S.cur.last && S.cur.last.created_at);
+    if(!at) return Promise.resolve();
+    return api('/rest/v1/conversation_members?conversation_id=eq.' + cid + '&user_id=eq.' + uid, {
+      method: 'PATCH', prefer: 'return=minimal', body: { last_read_at: at }
+    }).catch(function(){});
+  }
+
+  function deleteMsgLocal(wrap, m){
+    if(!m.id){ wrap.remove(); return Promise.resolve(); }
+    return api('/rest/v1/rpc/delete_message_local', {
+      method: 'POST', body: { p_msg: Number(m.id) }
+    }).then(function(){
+      S.deletedIds[String(m.id)] = 1;
+      delete S.ids[m.id];
+      wrap.remove();
+      Object.keys(S.msgCache).forEach(function(cid){
+        var c = S.msgCache[cid];
+        c.rows = c.rows.filter(function(r){ return String(r.id) !== String(m.id); });
+        delete c.seen[m.id];
+      });
+      toast('已删除');
+    }).catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  /* ================= P2-5 群聊 =================
+     群成员缓存 gMembers 一处多用：消息头像、发送者昵称、@ 选人。
+     所有群操作都走 RPC，前端不做权限判断，只按返回的 my_role 决定菜单是否显示。 */
+
+  function loadGroupMembers(cid){
+    if(!cid) return Promise.resolve([]);
+    return api('/rest/v1/rpc/list_group_members', { method: 'POST', body: { p_conv: cid } })
+      .then(function(rows){ gMembers = rows || []; return gMembers; })
+      .catch(function(){ gMembers = []; return []; });
+  }
+
+  /* ---------------- 群信息 ---------------- */
+  function loadGroupInfo(cid){
+    return api('/rest/v1/rpc/get_group_info', { method: 'POST', body: { p_conv: cid } })
+      .then(function(rows){ gInfo = (rows && rows[0]) || null; return gInfo; })
+      .catch(function(){ gInfo = null; return null; });
+  }
+
+  /* 标为未读：位点退到倒数第二条，交给服务端算 */
+  function markConvUnread(c){
+    delete S.readMark[c.id];       /* 别让本地「刚已读」窗口把它压回 0 */
+    return api('/rest/v1/rpc/mark_conversation_unread', {
+      method: 'POST', body: { p_conv: c.id }
+    }).then(function(){
+      return loadConvs();
+    }).then(function(){
+      renderConvs();
+      toast('已标为未读');
+    }).catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  /* 删除会话：PRD 要求「仅删本地、对方无感、收到新消息重新出现」，
+     所以记在 localStorage 里（cid -> 删除时刻），不碰服务端。 */
+
+  function setFlags(c, pinned, mute){
+    return api('/rest/v1/rpc/set_conversation_flags', {
+      method: 'POST',
+      body: { p_conv: c.id, p_pinned: pinned, p_mute: mute }
+    }).then(function(){
+      if(pinned !== null && pinned !== undefined) c.pinned_at = pinned ? new Date().toISOString() : null;
+      if(mute !== null && mute !== undefined) c.mute = !!mute;
+      return loadConvs();
+    }).then(function(){
+      renderConvs();
+      toast('设置好了');
+    }).catch(function(e){ toast(friendly(e.message)); });
+  }
+
+  function syncRecalled(cid){
+    if(!cid) return Promise.resolve();
+    return api('/rest/v1/messages?select=id,deleted_at&conversation_id=eq.' + cid + '&deleted_at=not.is.null')
+      .then(function(rows){
+        (rows || []).forEach(function(r){
+          var c = S.msgCache[cid];
+          if(c){
+            c.rows.forEach(function(x){
+              if(String(x.id) === String(r.id) && !x.deleted_at){
+                x.deleted_at = r.deleted_at; x.content = '';
+              }
+            });
+          }
+          if(!msgsBox) return;
+          var wrap = msgsBox.querySelector('.msg[data-id="' + r.id + '"]');
+          if(wrap && !wrap.querySelector('.bubble.recalled')) paintRecalled(wrap, null);
+        });
+      })
+      .catch(function(){});
+  }
+
+  /* 新 RPC 还没部署时自动退回「只认邮箱」的老接口 —— 加好友不能整个挂掉 */
+  function findUser(key, kind){
+    if(!S.noFindV2){
+      return api('/rest/v1/rpc/find_user_v2', { method: 'POST', body: { p_key: key } })
+        .then(function(rows){ return (rows && rows[0]) || null; })
+        .catch(function(e){
+          if(e && (e.status === 400 || e.status === 404)){ S.noFindV2 = true; return findUser(key, kind); }
+          throw e;
+        });
+    }
+    if(kind !== 'mail') return Promise.reject(new Error('服务器还是旧版本，暂时只能用邮箱加好友'));
+    return api('/rest/v1/rpc/find_user', { method: 'POST', body: { p_email: key } })
+      .then(function(rows){ return (rows && rows[0]) || null; });
+  }
+
+/* =====================================================================
+   果冻微信 · LOGIC —— 纯逻辑层
+   时间分档、会话命名与预览、首字母分组、提及解析、图片地址解析、撤回判定
+
+   ---------------------------------------------------------------------
+   契约（tools_check_layers.py 在构建时校验，违规会中止构建）：
+     · 不碰 DOM      —— 不出现 document. / $( / $$( / el(
+     · 不发请求      —— 不出现 api( / fetch(
+     · 不读视图状态  —— 不出现 gMembers / msgsBox / convRowMap / inp / pickBtn
+     · 需要外部数据时由调用方传参；只有「当前登录用户、当前会话」这类
+       全局上下文允许缺省回退到 core 的 S（它们是 App 级事实，不算视图状态）
+
+   这样这个文件可以脱离 App 单独测试（test_logic.js 就是干这个的），
+   将来换壳（Capacitor / uni-app）时它是可以直接复用的那一层。
+   ===================================================================== */
 
   /* ---------------- 时间格式（FR-207）---------------- */
   function fmtListTime(iso){
@@ -1123,7 +1500,12 @@
     if(c.title && c.title !== '我们的小房间') return c.title;
     return '等待对方加入';
   }
-  function convPreview(c){
+
+  /* 会话预览文案。
+     myId 显式传进来才叫纯函数（可以脱离 App 单测、将来换壳直接复用）；
+     不传时回退到当前登录用户，保证老调用点一行都不用改。 */
+  function convPreview(c, myId){
+    if(myId == null) myId = (S.sess && S.sess.user) ? S.sess.user.id : '';
     if(c.draft) return '[草稿] ' + c.draft;
     if(!c.last) return '开始聊天吧 ✧';
     var body = c.last.content || '';
@@ -1134,31 +1516,188 @@
     /* 撤回：服务端把最后一条的 msg_type 标成 recalled。
        文案对齐微信——单聊「你/对方」，群聊「你/昵称」，不能出现「我：撤回了一条消息」这种别扭拼法 */
     else if(c.last.type === 'recalled'){
-      var rmine = (c.last.sender_id === S.sess.user.id);
+      var rmine = (c.last.sender_id === myId);
       if(c.ctype === 'group') return (rmine ? '你' : (c.last_nick || '有人')) + '撤回了一条消息';
       return rmine ? '你撤回了一条消息' : '对方撤回了一条消息';
     }
-    var mine = (c.last.sender_id === S.sess.user.id);
+    var mine = (c.last.sender_id === myId);
     /* 群聊没有「对方」概念，一律「谁说的：内容」，否则完全分不清是谁在讲话 */
     if(c.ctype === 'group') return (mine ? '我' : (c.last_nick || '有人')) + '：' + body;
     return (mine ? '我：' : '') + body;
   }
 
-  /* 会话行：cid -> { el, sig }。复用节点做增量更新，避免每轮轮询整表重建导致闪动 */
-  var convRowMap = {};
-
-  function convById(id){
-    for(var i=0;i<S.convs.length;i++){ if(S.convs[i].id === id) return S.convs[i]; }
+  /* 会话查找：list 显式传入即纯函数，不传时用当前会话列表 */
+  function convById(id, list){
+    list = list || S.convs;
+    for(var i=0;i<list.length;i++){ if(list[i].id === id) return list[i]; }
     return null;
   }
 
+  /* 未读总数：会话列表 Tab 红点、「我」页统计条共用同一份算法，
+     别在两处各写一遍 forEach（以前就是两处，改口径要改两个地方） */
+  function unreadTotal(list){
+    list = list || S.convs;
+    var n = 0;
+    for(var i=0;i<list.length;i++) n += (list[i].unread || 0);
+    return n;
+  }
+
+  /* 按创建时间倒序（好友申请「收到 + 发出」混排用）。
+     返回新数组，不动入参——调用方常常直接把两个数组合并后传进来。 */
+  function sortByCreatedDesc(list){
+    return list.slice().sort(function(a, b){
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
+  }
+
   /* 影响这一行「显示内容」的字段签名，签名不变就一个字节都不碰 DOM */
-  function convSig(c){
-    return [convName(c), fmtListTime(c.last && c.last.created_at), convPreview(c),
+  function convSig(c, myId){
+    return [convName(c), fmtListTime(c.last && c.last.created_at), convPreview(c, myId),
             c.unread, c.mute ? 1 : 0, c.pinned_at ? 1 : 0,
             c.peer_avatar || '', c.ctype || '', c.last_nick || '', c.gavatar || '',
             c.mention || 0].join('\u0001');
   }
+
+  /* ---------------- 好友列表渲染 ---------------- */
+  function groupOf(name){
+    var s = String(name || '').trim();
+    if(!s) return '#';
+    var ch = s.charAt(0).toUpperCase();
+    return /[A-Z]/.test(ch) ? ch : '#';
+  }
+
+  function parsePics(c){
+    if(!c) return null;
+    var s = String(c).trim();
+    if(s.charAt(0) === '['){
+      try{ var a = JSON.parse(s); if(a && a.length) return a; }catch(e){}
+    }
+    if(/^https?:\/\//.test(s)) return [s];
+    return null;
+  }
+
+  /* 压缩；环境不支持 canvas（如 jsdom 测试）时原样返回，让上层照常走通 */
+  function compressPic(file){
+    return new Promise(function(res){
+      var cv, ctx;
+      try{
+        cv = document.createElement('canvas');
+        ctx = cv && cv.getContext && cv.getContext('2d');
+      }catch(e){ ctx = null; }
+      if(!ctx){ res(file); return; }
+      var objUrl = URL.createObjectURL(file);
+      var im = new Image();
+      im.onload = function(){
+        try{
+          var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+          var s = Math.min(1, PIC_SIDE / Math.max(w, h));
+          cv.width = Math.max(1, Math.round(w * s));
+          cv.height = Math.max(1, Math.round(h * s));
+          ctx.drawImage(im, 0, 0, cv.width, cv.height);
+          URL.revokeObjectURL(objUrl);
+          cv.toBlob(function(b){
+            if(!b){ res(file); return; }
+            if(b.size > PIC_LIMIT){
+              cv.toBlob(function(b2){ res(b2 || b); }, 'image/jpeg', 0.6);
+            } else res(b);
+          }, 'image/jpeg', PIC_Q);
+        }catch(e){ URL.revokeObjectURL(objUrl); res(file); }
+      };
+      im.onerror = function(){ URL.revokeObjectURL(objUrl); res(file); };
+      im.src = objUrl;
+    });
+  }
+
+  /* 能不能撤回：自己的消息 + 未删除 + 在时间窗内。
+     myId / now 都可显式传入，这样这条规则能脱离 App 单测。 */
+  function canRecall(m, myId, now){
+    if(!m || !m.id || m.deleted_at) return false;
+    if(myId == null) myId = S.me.id;
+    if(m.sender_id !== myId) return false;
+    var t = m.created_at ? new Date(m.created_at).getTime() : 0;
+    if(!t) return false;
+    return ((now == null ? Date.now() : now) - t) < RECALL_MS;
+  }
+
+  /* 群成员里按 user_id 找人。
+     list 必须由调用方传（不默认读 gMembers）——gMembers 属于视图层状态，
+     逻辑层反向依赖它的话，将来换壳就得把这套群成员结构一起搬走。 */
+  function memberOf(uid, list){
+    if(!list) return null;
+    for(var i = 0; i < list.length; i++){
+      if(list[i].user_id === uid) return list[i];
+    }
+    return null;
+  }
+
+  function gcFriendKey(f){ return f.user_id; }
+
+  /* 从文本里反推被 @ 的人：按「@昵称」精确命中，避免把「@」后随便打的字当成提及。
+     members 由调用方给（群成员列表），逻辑层不直接读视图层的 gMembers。
+
+     「精确」的判定：命中位置后面不能紧跟字母/数字/汉字。
+     否则群里有「小蓝」时，`@小蓝蓝` 会把「小蓝」也算进去（昵称互为前缀的真实场景，
+     比如「小明 / 小明同学」）；但后面跟空格、标点、下一个 @ 都算正常结束。 */
+  function extractMentions(text, members){
+    if(!S.cur || S.cur.ctype !== 'group') return null;
+    if(S.mentionsOff) return null;
+    text = String(text || '');
+    if(text.indexOf('@') < 0) return null;
+    var ids = [];
+    (members || []).forEach(function(m){
+      if(m.is_me || !m.nickname) return;
+      var at = '@' + m.nickname;
+      var i = text.indexOf(at);
+      while(i > -1){
+        var after = text.charAt(i + at.length);
+        if(!after || !/[A-Za-z0-9_\u4e00-\u9fff]/.test(after)){ ids.push(m.user_id); return; }
+        i = text.indexOf(at, i + 1);
+      }
+    });
+    return ids.length ? ids : null;
+  }
+
+  /* ---------------- 加好友 ---------------- */
+  function mailOK(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim()); }
+
+  /* 一个输入框通吃三种凭据：邮箱 / 手机号 / 果冻号。
+     判断顺序必须与后端 resolve_user_key 保持一致，
+     否则会出现「本地判不合法、后端其实查得到」的互相打架。 */
+
+  function keyKind(v){
+    var k = String(v || '').trim();
+    if(!k) return 'empty';
+    if(k.indexOf('@') > 0) return mailOK(k) ? 'mail' : 'bad';
+    if(!/^[0-9]+$/.test(k)) return 'bad';
+    if(k.length === 11 && k.charAt(0) === '1') return 'phone';
+    if(k.length === 7) return 'jelly';
+    return 'bad';
+  }
+
+  /* 纯 emoji 且 ≤3 个 → 返回个数，否则 0（用于大表情，B-03） */
+  function emojiCount(s){
+    s = String(s == null ? '' : s).trim();
+    if(!s) return 0;
+    try{
+      var hit = s.match(/\p{Extended_Pictographic}/gu);
+      if(!hit) return 0;
+      var rest = s.replace(/\p{Extended_Pictographic}|\uFE0F|\u200D|[\u{1F3FB}-\u{1F3FF}]|\s/gu, '');
+      return rest.length ? 0 : hit.length;
+    }catch(e){ return 0; }
+  }
+
+/* =====================================================================
+   果冻微信 · VIEW
+   视图层：所有 render* / paint* / 弹层 / DOM 复用。
+           只负责「把数据画成界面」，业务流转不在这里。
+   ---------------------------------------------------------------------
+   构建时由 build_app.py 按 core → api → logic → view → app 顺序内联到
+   index.html 的同一个 <script> 里，因此五个文件共享同一个作用域，
+   函数之间可以直接互相调用（没有 import/export）。
+   ===================================================================== */
+
+  /* 会话行：cid -> { el, sig }。复用节点做增量更新，避免每轮轮询整表重建导致闪动 */
+  var convRowMap = {};
 
   function convRowBuild(c){
     var row = el('div', 'row anim' + (c.pinned_at ? ' pinned' : ''));
@@ -1287,8 +1826,7 @@
 
   function updateTabDot(){
     var tab = $('.tab[data-tab="chat"]'); if(!tab) return;
-    var total = 0;
-    S.convs.forEach(function(c){ total += (c.unread || 0); });
+    var total = unreadTotal();
     var d = tab.querySelector('.tdot');
     if(!d){ d = el('span', 'tdot'); tab.appendChild(d); }
     if(total > 0){
@@ -1297,14 +1835,6 @@
     }else{
       d.style.display = 'none';
     }
-  }
-
-  /* ---------------- 好友列表渲染 ---------------- */
-  function groupOf(name){
-    var s = String(name || '').trim();
-    if(!s) return '#';
-    var ch = s.charAt(0).toUpperCase();
-    return /[A-Z]/.test(ch) ? ch : '#';
   }
 
   function renderFriends(){
@@ -1348,10 +1878,7 @@
 
     /* 收到 + 发出混排，按申请时间倒序 —— 和微信「新的朋友」一样是同一个列表，
        区别只在右边缘：收到的给「通过/拒绝」，发出的显示自己的申请走到哪一步了 */
-    var all = S.reqs.concat(S.outReqs || []);
-    all.sort(function(a, b){
-      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
-    });
+    var all = sortByCreatedDesc(S.reqs.concat(S.outReqs || []));
 
     if(!all.length){ if(empty) empty.style.display = 'block'; updateReqBadge(); return; }
     if(empty) empty.style.display = 'none';
@@ -1415,7 +1942,9 @@
   /* ---- 会话消息缓存（让「从列表点进会话」秒开）----
      只存「服务端已确认」的消息。再次进入同一会话时先用它同步渲染出内容，
      再在后台按 id=gt 增量补拉；这样既没有「加载中…」的空白等待，也不用每次拉 80 条。 */
+
   var CACHE_CONVS = 8;     /* 最多缓存几个会话（按使用时间淘汰） */
+
   var CACHE_ROWS  = 200;   /* 每个会话最多缓存多少条 */
 
   function cacheOf(cid){
@@ -1537,7 +2066,7 @@
     if(mine){
       avKey = S.me.avatar;
     }else if(inGroup){
-      var gm0 = memberOf(m.sender_id);
+      var gm0 = memberOf(m.sender_id, gMembers);
       avKey = gm0 ? (gm0.gavatar || 'ava_cat') : 'ava_cat';
     }else{
       avKey = (S.cur && S.cur.peer_avatar) || 'ava_cat';
@@ -1551,7 +2080,7 @@
        气泡直接贴屏边——文字消息不明显，图片消息一看就是别人发的。 */
     var col = el('div', 'col');
     if(inGroup && !mine){
-      var gm1 = memberOf(m.sender_id);
+      var gm1 = memberOf(m.sender_id, gMembers);
       col.appendChild(el('div', 'msender', gm1 ? gm1.nickname : '群成员'));
     }
     col.appendChild(bub);
@@ -1578,189 +2107,6 @@
     if(b) requestAnimationFrame(function(){ b.scrollTop = b.scrollHeight; });
   }
 
-  function fetchMessages(initial, retried){
-    if(!S.cur) return Promise.resolve([]);
-    /* 不再过滤 deleted_at：撤回的消息要留下来显示「XX撤回了一条消息」，
-       真正「谁都看不见」的是本地删除（message_deletions），在渲染时排除。
-       mentions 是 P2-5 才加的列：数据库还没跑迁移时查它会整条 400，
-       那会把聊天功能一起拖挂，所以探测失败后永久降级为不查该列。 */
-    var selBase = 'id,sender_id,content,created_at,msg_type,client_msg_id,deleted_at';
-    var sel = S.noMentions ? selBase : (selBase + ',mentions');
-    var q = initial
-      ? '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&order=id.desc&limit=80'
-      : '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&id=gt.' + S.lastId + '&order=id.asc&limit=100';
-    return api(q).then(function(rows){
-      rows = rows || [];
-      var keptMap = {}, keptTail = [];
-      if(rows.length && rows[0].mentions === undefined) S.mentionsOff = true;
-      if(initial){
-        rows.reverse();
-        /* 竞态保护：本请求发出后用户可能已经开始发消息，这些节点在服务端响应里
-           可能还没有（请求早于入库发出），直接 innerHTML='' 会永久删除它们。
-           注意选择器**不能只取 .msg.pending**：一条消息可能「已经发送成功（pending 类已移除）
-           但 initial 响应里没有它」，那种节点同样会被抹掉——这正是「消息发出去了却看不见」。
-           所以凡本地乐观产生的节点（带 data-client）一律先留着，等服务端行回来再就地升级。 */
-        Array.prototype.forEach.call(msgsBox.querySelectorAll('.msg[data-client]'), function(n){
-          keptMap[n.dataset.client] = n;
-        });
-        Array.prototype.forEach.call(msgsBox.querySelectorAll('.msg.pending:not([data-client])'), function(n){
-          keptTail.push(n);
-        });
-        msgsBox.innerHTML = '';
-        S.lastId = 0; S.ids = {}; S.lastShownAt = 0;
-        if(!rows.length && !keptTail.length && !Object.keys(keptMap).length){
-          msgsBox.appendChild(el('div', 'time', '还没有消息，说句话打破沉默吧 ✧'));
-        }
-      }
-      var added = 0;
-      /* 写入会话缓存（只存服务端已确认的消息，供下次进会话秒开） */
-      if(S.cur && S.cur.id){
-        rows.forEach(function(m){ cachePut(S.cur.id, m); });
-        cacheOf(S.cur.id).used = Date.now();
-      }
-      rows.forEach(function(m){
-        /* 服务端已回包、本地仍挂着「发送中」节点 → 复用该节点就地升级 */
-        if(initial && m.client_msg_id && keptMap[m.client_msg_id]){
-          var reuse = keptMap[m.client_msg_id];
-          delete keptMap[m.client_msg_id];
-          if(m.id){ reuse.dataset.id = m.id; S.ids[m.id] = 1; if(m.id > S.lastId) S.lastId = m.id; }
-          reuse.classList.remove('pending');
-          reuse.classList.remove('failed');
-          if(m.msg_type === 'image') swapPicSrc(reuse, m.content);
-          msgsBox.appendChild(reuse);
-          added++;
-          return;
-        }
-        var n = addMsg(m, !initial, false);
-        if(n) added++;
-      });
-      /* 仍未出现在服务端结果里的气泡挂回尾部（原节点，deliver 后续改 class 依然生效）。
-         判定用 id 比较而不是「是否发送成功」：
-           · 还在飞（没有 id）           → 挂回
-           · 已成功但比本次结果更新（initial 请求早于它发出）→ 挂回
-           · 比本次结果更早的旧历史（被 80 条窗口截掉）      → 丢弃，否则时间顺序会乱 */
-      var maxRowId = rows.length ? Number(rows[rows.length - 1].id) : 0;
-      keptTail.concat(Object.keys(keptMap).map(function(k){ return keptMap[k]; })).forEach(function(n){
-        var lid = Number(n.dataset.id || 0);
-        if(lid && lid <= maxRowId) return;
-        msgsBox.appendChild(n);
-        added++;
-      });
-      if(rows.length) S.lastAt = rows[rows.length - 1].created_at;
-      if(added) scrollBottom();
-      return rows;
-    }).catch(function(e){
-      /* 400/404 多半是列不存在（迁移没跑）。降级重试一次，别让新功能把老功能带崩。 */
-      if(!retried && !S.noMentions && e && (e.status === 400 || e.status === 404)){
-        S.noMentions = true;
-        return fetchMessages(initial, true);
-      }
-      throw e;
-    });
-  }
-
-  /* ---------------- 发送（幂等 + 超时 + 重发）---------------- */
-  function postMessage(cid, text, clientId, type, mentions){
-    var body = { p_conv: cid, p_content: text, p_client_id: clientId, p_type: type || 'text' };
-    /* 只有真的 @ 到人才带这个参数，普通文本消息保持原样 */
-    if(mentions && mentions.length) body.p_mentions = mentions;
-    return api('/rest/v1/rpc/send_message', {
-      method: 'POST',
-      timeout: 15000,
-      body: body
-    }).then(function(res){
-      var row = (res && res[0]) || null;
-      if(!row) throw new Error('发送失败，请重试');
-      return row;
-    }).catch(function(e){
-      /* 数据库还是旧版 send_message（没有 p_mentions 形参）时会 PGRST202/404。
-         退一步去掉这个参数重发：@ 提示丢了，但消息必须发得出去。 */
-      if(body.p_mentions && e && (e.status === 404 || e.status === 400)){
-        S.mentionsOff = true;
-        delete body.p_mentions;
-        return api('/rest/v1/rpc/send_message', { method: 'POST', timeout: 15000, body: body })
-          .then(function(res){
-            var row = (res && res[0]) || null;
-            if(!row) throw new Error('发送失败，请重试');
-            return row;
-          });
-      }
-      throw e;
-    });
-  }
-
-  /* ---------------- 图片消息（P2 / FR-303）----------------
-     链路：选图 → canvas 压缩（长边 1600，质量 0.82，超 500KB 二次降质）
-          → 传到 Storage 公开桶 chat-media → 拿公网 URL → send_message(type=image)
-     content 存 JSON 数组（一条消息含多张图，与微信「一次发 9 张 = 一条消息」一致）。
-     乐观渲染先用 blob: URL 顶上，避免先空白再闪现。 */
-  var PIC_MAX = 9, PIC_SIDE = 1600, PIC_Q = 0.82, PIC_LIMIT = 500 * 1024;
-
-  function parsePics(c){
-    if(!c) return null;
-    var s = String(c).trim();
-    if(s.charAt(0) === '['){
-      try{ var a = JSON.parse(s); if(a && a.length) return a; }catch(e){}
-    }
-    if(/^https?:\/\//.test(s)) return [s];
-    return null;
-  }
-
-  /* 压缩；环境不支持 canvas（如 jsdom 测试）时原样返回，让上层照常走通 */
-  function compressPic(file){
-    return new Promise(function(res){
-      var cv, ctx;
-      try{
-        cv = document.createElement('canvas');
-        ctx = cv && cv.getContext && cv.getContext('2d');
-      }catch(e){ ctx = null; }
-      if(!ctx){ res(file); return; }
-      var objUrl = URL.createObjectURL(file);
-      var im = new Image();
-      im.onload = function(){
-        try{
-          var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
-          var s = Math.min(1, PIC_SIDE / Math.max(w, h));
-          cv.width = Math.max(1, Math.round(w * s));
-          cv.height = Math.max(1, Math.round(h * s));
-          ctx.drawImage(im, 0, 0, cv.width, cv.height);
-          URL.revokeObjectURL(objUrl);
-          cv.toBlob(function(b){
-            if(!b){ res(file); return; }
-            if(b.size > PIC_LIMIT){
-              cv.toBlob(function(b2){ res(b2 || b); }, 'image/jpeg', 0.6);
-            } else res(b);
-          }, 'image/jpeg', PIC_Q);
-        }catch(e){ URL.revokeObjectURL(objUrl); res(file); }
-      };
-      im.onerror = function(){ URL.revokeObjectURL(objUrl); res(file); };
-      im.src = objUrl;
-    });
-  }
-
-  function uploadPic(cid, blob){
-    var path = cid + '/' + uuid() + '.jpg';
-    return ensureToken().then(function(tok){
-      return fetch(SUPA.url + '/storage/v1/object/chat-media/' + path, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPA.key,
-          'Authorization': 'Bearer ' + tok,
-          'Content-Type': 'image/jpeg',
-          'cache-control': 'max-age=31536000'
-        },
-        body: blob
-      }).then(function(r){
-        if(r.ok) return SUPA.url + '/storage/v1/object/public/chat-media/' + path;
-        return r.text().then(function(t){
-          var e = new Error('图片上传失败（' + r.status + '）');
-          e.status = r.status; e.data = t;
-          throw e;
-        });
-      });
-    });
-  }
-
   function buildPics(urls){
     urls = urls || [];
     if(urls.length === 1){
@@ -1785,6 +2131,7 @@
 
   /* 上传成功后把气泡里的 blob: 预览换成远端地址。
      不换的话：blob URL 只在本次页面生命周期内有效，重开 App / 从缓存重建时会变空图。 */
+
   function swapPicSrc(node, content){
     var urls = parsePics(content);
     if(!urls || !urls.length || !node) return;
@@ -1793,6 +2140,610 @@
     bub.innerHTML = '';
     bub.appendChild(buildPics(urls));
   }
+
+  /* ---------------- 全屏看图 ---------------- */
+  var V = { urls: [], idx: 0 };
+
+  function paintViewer(){
+    var img = $('#vImg'), cnt = $('#vCnt'), dot = $('#vDot');
+    if(!img) return;
+    img.src = V.urls[V.idx] || '';
+    img.style.transform = '';
+    if(cnt) cnt.textContent = V.urls.length > 1 ? (V.idx + 1) + ' / ' + V.urls.length : '';
+    if(dot){
+      dot.innerHTML = '';
+      if(V.urls.length > 1){
+        V.urls.forEach(function(_, k){
+          var d = document.createElement('i');
+          if(k === V.idx) d.className = 'on';
+          dot.appendChild(d);
+        });
+      }
+    }
+  }
+
+  function openViewer(urls, i){
+    V.urls = urls || []; V.idx = i || 0;
+    var v = $('#viewer');
+    if(!v) return;
+    v.classList.add('on');
+    paintViewer();
+  }
+
+  function closeViewer(){
+    var v = $('#viewer');
+    if(v) v.classList.remove('on');
+    var img = $('#vImg');
+    if(img){ img.src = ''; img.style.transform = ''; }
+  }
+
+  function viewerStep(d){
+    if(V.urls.length < 2) return;
+    V.idx = (V.idx + d + V.urls.length) % V.urls.length;
+    paintViewer();
+  }
+
+  function bindViewer(){
+    var v = $('#viewer');
+    if(!v) return;
+    $('#vClose').addEventListener('click', closeViewer);
+    v.addEventListener('click', function(e){ if(e.target === v) closeViewer(); });
+    /* 左右滑切换 + 双击缩放 */
+    var sx = 0, sy = 0, moved = false, zoom = 1;
+    var stage = $('#vStage'), img = $('#vImg');
+    stage.addEventListener('touchstart', function(e){
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; moved = false;
+    }, { passive: true });
+    stage.addEventListener('touchmove', function(e){
+      if(Math.abs(e.touches[0].clientX - sx) > 12) moved = true;
+    }, { passive: true });
+    stage.addEventListener('touchend', function(e){
+      var dx = (e.changedTouches[0].clientX - sx);
+      var dy = (e.changedTouches[0].clientY - sy);
+      if(moved && Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) viewerStep(dx < 0 ? 1 : -1);
+    });
+    img.addEventListener('dblclick', function(){
+      zoom = zoom === 1 ? 2 : 1;
+      img.style.transform = 'scale(' + zoom + ')';
+    });
+  }
+
+  /* ---------------- 长按菜单 ---------------- */
+  function openSheet(items){
+    var sh = $('#sheet'), mk = $('#mask');
+    if(!sh) return;
+    sh.innerHTML = '';
+    var card = el('div', 'scard');
+    items.forEach(function(it){
+      var d = el('div', 'sitem' + (it.danger ? ' danger' : ''), it.label);
+      d.addEventListener('click', function(){ closeSheet(); if(it.fn) setTimeout(it.fn, 0); });
+      card.appendChild(d);
+    });
+    sh.appendChild(card);
+    var cancel = el('div', 'scancel', '取消');
+    cancel.addEventListener('click', closeSheet);
+    sh.appendChild(cancel);
+    if(mk) mk.classList.add('on');
+    sh.classList.add('on');
+  }
+
+  function closeSheet(){
+    var sh = $('#sheet'), mk = $('#mask');
+    if(sh) sh.classList.remove('on');
+    if(mk) mk.classList.remove('on');
+  }
+
+  function bindLongPress(node, fn){
+    var timer = 0, moved = false, sx = 0, sy = 0;
+    node.addEventListener('touchstart', function(e){
+      if(!e.touches || !e.touches.length) return;
+      moved = false;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      clearTimeout(timer);
+      timer = setTimeout(function(){ if(!moved) fn(); }, 480);
+    }, { passive: true });
+    node.addEventListener('touchmove', function(e){
+      if(!e.touches || !e.touches.length) return;
+      if(Math.abs(e.touches[0].clientX - sx) > 10 || Math.abs(e.touches[0].clientY - sy) > 10){
+        moved = true; clearTimeout(timer);
+      }
+    }, { passive: true });
+    node.addEventListener('touchend', function(){ clearTimeout(timer); }, { passive: true });
+    node.addEventListener('touchcancel', function(){ clearTimeout(timer); }, { passive: true });
+    node.addEventListener('contextmenu', function(e){ e.preventDefault(); fn(); });
+  }
+
+  /* 撤回窗口：以「消息创建时间」算 2 分钟。客户端时间只做前置判断，
+     真正说了算的是服务端 recall_message 里的 now() 校验。 */
+
+  function msgMenu(wrap, m){
+    if(wrap.classList.contains('pending')){ toast('还在发送中…'); return; }
+    var items = [];
+    var isPic = (m.msg_type === 'image');
+    var pics = isPic ? parsePics(m.content) : null;
+
+    if(wrap.classList.contains('failed')){
+      items.push({ label: '重新发送', fn: function(){ retryMsg(wrap); } });
+    }
+    if(!m.deleted_at){
+      if(isPic && pics){
+        items.push({ label: '看大图', fn: function(){ openViewer(pics, 0); } });
+      } else {
+        items.push({ label: '复制', fn: function(){ copyText(m.content); } });
+      }
+      if(canRecall(m)){
+        items.push({ label: '撤回', fn: function(){ doRecall(wrap, m); } });
+      }
+    }
+    items.push({ label: '删除', danger: true, fn: function(){ deleteMsgLocal(wrap, m); } });
+    openSheet(items);
+  }
+
+  function paintRecalled(wrap, m){
+    var sid = (m && m.sender_id) || wrap.dataset.sender || '';
+    var mine = (sid === S.me.id);
+    var bub = wrap.querySelector('.bubble');
+    if(!bub) return;
+    bub.className = 'bubble recalled';
+    bub.innerHTML = '';
+    bub.textContent = mine ? '你撤回了一条消息' : '对方撤回了一条消息';
+  }
+
+  var gMembers = [];
+
+  var gInfo = null;
+
+  var gSel = {};
+
+  var gMode = 'create';
+
+  function renderGroupList(rows){
+    var box = $('#groupList'), empty = $('#groupEmpty');
+    if(!box) return;
+    box.innerHTML = '';
+    rows = rows || [];
+    if(empty) empty.style.display = rows.length ? 'none' : 'flex';
+    /* 通讯录「群聊」上的数字 */
+    var cnt = $('#groupCnt');
+    if(cnt){
+      cnt.textContent = String(rows.length);
+      cnt.style.display = rows.length ? 'flex' : 'none';
+    }
+    rows.forEach(function(g){
+      var row = el('div', 'row');
+      row.dataset.gid = g.gid;
+      row.appendChild(el('div', 'ava gava', g.gavatar || '👥'));
+      var mid = el('div', 'mid');
+      var nm = el('div', 'nm');
+      nm.appendChild(document.createTextNode(g.gname || '群聊'));
+      if(g.my_role === 'owner') nm.appendChild(el('span', 't', '群主'));
+      mid.appendChild(nm);
+      mid.appendChild(el('div', 'ms', (Number(g.member_count) || 0) + ' 人'));
+      row.appendChild(mid);
+      var chev = el('div', 'chev', '›');
+      chev.style.cssText = 'align-self:center;font-size:18px;color:#c6bdd6;';
+      row.appendChild(chev);
+      row.addEventListener('click', function(){ openConvById(g.gid); });
+      box.appendChild(row);
+    });
+  }
+
+  function renderGcList(){
+    var box = $('#gcList'), sel = $('#gcSel'), empty = $('#gcEmpty');
+    if(!box) return;
+    box.innerHTML = '';
+    if(sel) sel.innerHTML = '';
+    var fs = S.friends || [];
+    if(empty) empty.style.display = fs.length ? 'none' : 'flex';
+
+    /* 已选头像条 */
+    fs.forEach(function(f){
+      if(!gSel[gcFriendKey(f)]) return;
+      var gp = el('div', 'gp');
+      gp.appendChild(avaImg(f.avatar || 'ava_cat'));
+      gp.addEventListener('click', function(){ delete gSel[gcFriendKey(f)]; renderGcList(); });
+      if(sel) sel.appendChild(gp);
+    });
+
+    fs.forEach(function(f){
+      var key = gcFriendKey(f);
+      /* 用通讯录同款 .ccell 白卡行，避免选人页看起来像另一套 UI */
+      var row = el('div', 'ccell');
+      row.dataset.uid = key;
+      var av = el('div', 'ava');
+      av.appendChild(avaImg(f.avatar || 'ava_cat'));
+      row.appendChild(av);
+      row.appendChild(el('div', 'nm', f.remark || f.nickname));
+      var on = !!gSel[key];
+      row.appendChild(el('div', 'gchk' + (on ? ' on' : ''), on ? '✓' : ''));
+      row.addEventListener('click', function(){
+        if(gSel[key]) delete gSel[key]; else gSel[key] = 1;
+        renderGcList();
+      });
+      box.appendChild(row);
+    });
+    fillImgIn(box);
+    fillImgIn(sel);
+  }
+
+  function renderGroupInfo(){
+    var box = $('#gMembers');
+    if(box){
+      box.innerHTML = '';
+      gMembers.forEach(function(m){
+        var gc = el('div', 'gc');
+        var av = el('div', 'ava');
+        av.appendChild(avaImg(m.gavatar || 'ava_cat'));
+        gc.appendChild(av);
+        gc.appendChild(el('div', 'gn', m.nickname + (m.is_me ? '（我）' : '')));
+        if(m.role === 'owner') gc.appendChild(el('div', 'gr', '群主'));
+        else if(m.role === 'admin') gc.appendChild(el('div', 'gr', '管理员'));
+        gc.addEventListener('click', function(){ memberMenu(m); });
+        box.appendChild(gc);
+      });
+      /* 邀请入口做成最后一格「+」，比放在右上角更好点 */
+      if(gInfo){
+        var add = el('div', 'gc');
+        var av2 = el('div', 'ava');
+        av2.style.cssText = 'font-size:22px;color:#c6bdd6;background:#faf7ff;';
+        av2.textContent = '＋';
+        add.appendChild(av2);
+        add.appendChild(el('div', 'gn', '邀请'));
+        add.addEventListener('click', function(){ openGroupCreate('invite'); });
+        box.appendChild(add);
+      }
+      fillImgIn(box);
+    }
+    if(gInfo){
+      if($('#gNameVal')) $('#gNameVal').textContent = gInfo.gname || '群聊';
+      if($('#gCountVal')) $('#gCountVal').textContent = (Number(gInfo.member_count) || gMembers.length) + ' 人';
+      if($('#gCodeVal')) $('#gCodeVal').textContent = (S.cur && S.cur.code) || '-';
+      var lb = $('#btnLeaveGroup');
+      if(lb && lb.querySelector('span')){
+        var mine = (gInfo.owner_id === S.sess.user.id);
+        var only = (Number(gInfo.member_count) || 1) <= 1;
+        lb.querySelector('span').textContent = mine ? (only ? '解散该群聊' : '退出并转让群主') : '退出群聊';
+      }
+    }
+  }
+
+  function memberMenu(m){
+    var myRole = (gInfo && gInfo.my_role) || 'member';
+    var items = [];
+    if(!m.is_me && m.role !== 'owner' && (myRole === 'owner' || (myRole === 'admin' && m.role === 'member'))){
+      items.push({ label: '移出群聊', danger: true, fn: function(){ doRemoveMember(m); } });
+    }
+    if(!items.length){ toast(m.nickname); return; }
+    openSheet(items);
+  }
+
+  /* ---------------- @ 提及 ---------------- */
+  var atQuery = '';
+
+  function closeAtBox(){
+    var box = $('#atBox');
+    if(box) box.classList.remove('on');
+  }
+
+  function renderAtBox(q){
+    var box = $('#atBox');
+    if(!box) return;
+    box.innerHTML = '';
+    var list = gMembers.filter(function(m){
+      if(m.is_me) return false;
+      return !q || m.nickname.indexOf(q) > -1;
+    }).slice(0, 24);
+    if(!list.length){ box.classList.remove('on'); return; }
+    list.forEach(function(m){
+      var it = el('div', 'ait');
+      var av = el('div', 'ava');
+      av.appendChild(avaImg(m.gavatar || 'ava_cat'));
+      it.appendChild(av);
+      it.appendChild(el('div', '', m.nickname));
+      it.addEventListener('mousedown', function(ev){ ev.preventDefault(); pickAt(m); });
+      it.addEventListener('click', function(){ pickAt(m); });
+      box.appendChild(it);
+    });
+    fillImgIn(box);
+    box.classList.add('on');
+  }
+
+  function pickAt(m){
+    var v = inp.value, pos = inp.selectionStart;
+    if(typeof pos !== 'number') pos = v.length;
+    var at = v.lastIndexOf('@', pos - 1);
+    if(at < 0) at = pos;
+    var head = v.slice(0, at);
+    var tail = v.slice(pos);
+    var ins = '@' + m.nickname + ' ';
+    inp.value = head + ins + tail;
+    var np = (head + ins).length;
+    try{ inp.selectionStart = inp.selectionEnd = np; }catch(e){}
+    closeAtBox();
+    autoGrow(); refreshSend();
+  }
+
+  function insertAtSign(){
+    if(!inp) return;
+    var v = inp.value, pos = inp.selectionStart;
+    if(typeof pos !== 'number') pos = v.length;
+    inp.value = v.slice(0, pos) + '@' + v.slice(pos);
+    try{ inp.selectionStart = inp.selectionEnd = pos + 1; }catch(e){}
+    autoGrow(); refreshSend(); onAtInput();
+  }
+
+  /* 文本气泡渲染：把 @昵称 包成 span，其余一律走文本节点（不用 innerHTML，避免注入） */
+  function renderRichText(container, text, mentions){
+    text = String(text == null ? '' : text);
+    if(!mentions || !mentions.length){ container.textContent = text; return; }
+    var names = [];
+    mentions.forEach(function(uid){
+      var m = memberOf(uid, gMembers);
+      if(m && m.nickname) names.push(m.nickname);
+    });
+    if(!names.length){ container.textContent = text; return; }
+    /* 长名字优先，否则「@张三丰」会被「@张三」先切走 */
+    names.sort(function(a, b){ return b.length - a.length; });
+    var esc = names.map(function(n){ return n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
+    var re = new RegExp('@(' + esc.join('|') + ')', 'g');
+    var last = 0, mt;
+    while((mt = re.exec(text))){
+      if(mt.index > last) container.appendChild(document.createTextNode(text.slice(last, mt.index)));
+      container.appendChild(el('span', 'mention', '@' + mt[1]));
+      last = mt.index + mt[0].length;
+    }
+    if(last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
+  }
+
+  /* 成员信息晚到时的补救：缓存先渲染、成员后到，把昵称和头像补上 */
+  function refreshSenders(){
+    if(!S.cur || S.cur.ctype !== 'group' || !msgsBox) return;
+    var nodes = msgsBox.querySelectorAll('.msg.in[data-sender]');
+    for(var i = 0; i < nodes.length; i++){
+      var n = nodes[i], gm = memberOf(n.dataset.sender, gMembers);
+      if(!gm) continue;
+      var col = n.querySelector('.col');
+      if(col && !col.querySelector('.msender')){
+        col.insertBefore(el('div', 'msender', gm.nickname), col.firstChild);
+      }
+      var img = n.querySelector('img.a');
+      if(img){
+        var k = pickKey(gm.gavatar || 'ava_cat');
+        if(img.getAttribute('data-k') !== k) img.setAttribute('data-k', k);
+      }
+    }
+    fillImgIn(msgsBox);
+  }
+
+  function convMenu(c){
+    var items = [];
+    items.push({
+      label: c.pinned_at ? '取消置顶' : '置顶聊天',
+      fn: function(){ setFlags(c, !c.pinned_at, null); }
+    });
+    items.push({
+      label: c.mute ? '关闭消息免打扰' : '消息免打扰',
+      fn: function(){ setFlags(c, null, !c.mute); }
+    });
+    items.push({ label: '标为未读', fn: function(){ markConvUnread(c); } });
+    items.push({ label: '删除该聊天', danger: true, fn: function(){ hideConv(c); } });
+    openSheet(items);
+  }
+
+  function bannerUpdate(){
+    var b = $('#chatBanner'); if(!b) return;
+    if(!navigator.onLine){
+      b.style.display = 'block'; b.className = 'banner warn';
+      b.textContent = '现在没网哦，消息会等你联网后再同步';
+      return;
+    }
+    if(S.cur && !S.cur.peer_id){
+      b.style.display = 'block'; b.className = 'banner';
+      b.textContent = '对方还没进来 · 邀请码 ' + (S.cur.code || '------');
+      return;
+    }
+    b.style.display = 'none';
+  }
+
+  function renderHit(u, key){
+    var box = $('#hitBox'); if(!box) return;
+    box.innerHTML = '';
+    var card = el('div', 'hit');
+    card.dataset.uid = u.id;
+    var ava = el('div', 'ava'); ava.appendChild(avaImg(u.avatar));
+    var mid = el('div', 'mid');
+    mid.appendChild(el('div', 'nm', u.nickname || '有人'));
+
+    /* 副标题按「越不敏感越靠前」排：果冻号 → 脱敏手机号 → 脱敏邮箱，每条一行。
+       没邮箱的账号也会有果冻号，所以这里不会出现空白。 */
+    var bits = [];
+    if(u.jelly_id) bits.push('果冻号 ' + u.jelly_id);
+    if(u.phone_masked) bits.push(u.phone_masked);
+    if(u.email_masked) bits.push(u.email_masked);
+    var sub = el('div', 'sub');
+    if(bits.length){
+      bits.forEach(function(t){ sub.appendChild(el('div', '', t)); });
+    }else{
+      sub.textContent = maskEmail(key);
+    }
+    mid.appendChild(sub);
+
+    var src = { phone: '手机号命中', email: '邮箱命中', jelly: '果冻号命中' }[u.hit_by];
+    if(src) mid.appendChild(el('div', 'src', src));
+
+    card.appendChild(ava); card.appendChild(mid);
+
+    var label, ghost = false;
+    if(u.relation === 'self'){ label = '这是你自己'; ghost = true; }
+    else if(u.relation === 'friend'){ label = '发消息'; }
+    else if(u.relation === 'pending_out'){ label = '已申请，等通过'; ghost = true; }
+    else if(u.relation === 'pending_in'){ label = '通过申请'; }
+    else { label = '添加到通讯录'; }
+
+    var b = el('button', 'mini-btn' + (ghost ? ' ghost' : ''), label);
+    b.type = 'button';
+    b.addEventListener('click', function(){
+      if(u.relation === 'self'){ toast('这就是你自己呀'); return; }
+      if(u.relation === 'pending_out'){ toast('已经申请过啦，等对方通过'); return; }
+      if(u.relation === 'friend'){
+        var c = S.convs.filter(function(x){ return x.peer_id === u.id; })[0];
+        if(c) openConv(c); else openFriend({ user_id: u.id });
+        return;
+      }
+      sendFriendRequest(key);
+    });
+    card.appendChild(b);
+    box.appendChild(card);
+    if(window.__fillImg) window.__fillImg();
+  }
+
+  /* ---------------- 「我」页 / 资料编辑 ---------------- */
+  function renderMe(){
+    if(!S.sess) return;
+    var n = $('#meName'); if(n) n.textContent = S.me.nickname || '我的萌将';
+    /* 有的账号压根没有邮箱（手机号注册 / 后台手工建号），这时主标识换成「果冻号」，
+       别给用户看「未设置邮箱」这种自我否定的话 */
+    var m = $('#meMail');
+    if(m) m.textContent = (S.me.jelly_id ? '果冻号 ' + S.me.jelly_id : '果冻号生成中')
+      + (S.me.email ? ' · ' + maskEmail(S.me.email) : '');
+    /* 「我」页列表里那一行，点一下就能复制——用户找「我的号」一般点这里 */
+    var jv = $('#meJellyVal'); if(jv) jv.textContent = S.me.jelly_id || '生成中';
+    var ava = $('#meAva');
+    if(ava){ ava.removeAttribute('src'); ava.setAttribute('data-k', pickKey(S.me.avatar)); }
+    renderJellyHint();
+    var unread = unreadTotal();
+    var f1 = $('#stFriends'); if(f1) f1.textContent = S.friends.length;
+    var f2 = $('#stRooms'); if(f2) f2.textContent = S.convs.length;
+    var f3 = $('#stUnread'); if(f3) f3.textContent = unread;
+    if(window.__fillImg) window.__fillImg();
+  }
+
+  /* 添加朋友页顶部那句「你的果冻号：xxxxxxx」+「我」页头部的复制胶囊 */
+  function renderJellyHint(){
+    var h = $('#myJellyHint');
+    if(h) h.textContent = S.me.jelly_id || '待生成';
+    ['#btnCopyJelly', '#btnCopyJelly2'].forEach(function(sel){
+      var b = $(sel);
+      if(b) b.style.display = S.me.jelly_id ? 'inline-block' : 'none';
+    });
+  }
+
+  function renderAvaPick(){
+    var box = $('#avaPick'); if(!box) return;
+    box.innerHTML = '';
+    PRESET.forEach(function(k){
+      var d = el('div', 'ap' + (S.me.avatar === k ? ' on' : ''));
+      d.dataset.k = k;
+      d.appendChild(avaImg(k));
+      d.addEventListener('click', function(){
+        S.me.avatar = k;
+        $$('#avaPick .ap').forEach(function(x){ x.classList.toggle('on', x.dataset.k === k); });
+      });
+      box.appendChild(d);
+    });
+    if(window.__fillImg) window.__fillImg();
+  }
+
+  function openProfile(){
+    var i = $('#iNick'); if(i) i.value = S.me.nickname || '';
+    var e = $('#pErr'); if(e) e.textContent = '';
+    renderAvaPick();
+    goPage('profile', 'me');
+  }
+
+  /* ---------------- 聊天输入 ---------------- */
+  var inp = $('#msgInput'), sendBtn = $('#sendBtn');
+
+  function autoGrow(){
+    if(!inp) return;
+    inp.style.height = 'auto';
+    var h = inp.scrollHeight;
+    inp.style.height = (h > 20) ? Math.min(h, 88) + 'px' : '';
+  }
+
+  function refreshSend(){ if(sendBtn && inp) sendBtn.disabled = inp.value.trim().length === 0; }
+
+  var emoCat = '常用';
+
+  function recentEmos(){
+    try{
+      var a = JSON.parse(localStorage.getItem('jw_emoji_recent') || '[]');
+      return Array.isArray(a) ? a : [];
+    }catch(e){ return []; }
+  }
+
+  function pushRecentEmo(e){
+    var a = recentEmos().filter(function(x){ return x !== e; });
+    a.unshift(e);
+    try{ localStorage.setItem('jw_emoji_recent', JSON.stringify(a.slice(0, 16))); }catch(err){}
+  }
+
+  function renderEmo(){
+    var tabs = $('#emoTabs'), grid = $('#emoGrid');
+    if(!tabs || !grid) return;
+    var cats = EMO_CATS.filter(function(c){ return c !== '最近' || recentEmos().length; });
+    if(cats.indexOf(emoCat) < 0) emoCat = cats[0];
+    tabs.innerHTML = '';
+    cats.forEach(function(c){
+      var t = el('div', 'et' + (c === emoCat ? ' on' : ''), c);
+      t.addEventListener('click', function(){ emoCat = c; renderEmo(); });
+      tabs.appendChild(t);
+    });
+    grid.innerHTML = '';
+    var list = (emoCat === '最近') ? recentEmos() : (EMOJI[emoCat] || []);
+    list.forEach(function(e){
+      var sp = el('span', '', e);
+      sp.addEventListener('click', function(){ insertEmoji(e); });
+      grid.appendChild(sp);
+    });
+  }
+
+  function toggleEmo(force){
+    var p = $('#emoPanel');
+    if(!p) return;
+    var on = (force === undefined) ? !p.classList.contains('on') : !!force;
+    p.classList.toggle('on', on);
+    if(on){
+      if(inp) inp.blur();          /* 收键盘，否则面板会被键盘挡住 */
+      renderEmo();
+      setTimeout(scrollBottom, 260);
+    }
+  }
+
+  /* ---------------- 选图发图（P2）---------------- */
+  var pickBtn = $('#btnPickImg'), filePick = $('#filePick');
+
+  /* ---------------- 登录界面 ---------------- */
+  function resetLogin(){
+    var m = $('#iMail'), p = $('#iPass');
+    if(m) m.value = '';
+    if(p) p.value = '';
+    var e = $('#lErr'); if(e) e.textContent = '';
+    var b = $('#btnLogin');
+    if(b){ b.classList.remove('loading'); b.classList.add('dim'); b.innerHTML = '<span>' + (S.authMode === 'in' ? '进入果冻微信' : '注册并进入') + '</span>'; }
+    refreshLogin();
+  }
+
+  function refreshLogin(){
+    var m = ($('#iMail') || {}).value || '';
+    var p = ($('#iPass') || {}).value || '';
+    var ok = mailOK(m) && p.length >= 6;
+    var b = $('#btnLogin'); if(b) b.classList.toggle('dim', !ok);
+    return ok;
+  }
+
+  function shake(node){ if(!node) return; node.classList.remove('shake'); void node.offsetWidth; node.classList.add('shake'); }
+
+  var vvFit = function(){};
+
+/* =====================================================================
+   果冻微信 · APP
+   业务流转 + 事件绑定 + 轮询 + 启动
+   ---------------------------------------------------------------------
+   构建时由 build_app.py 按 core → api → logic → view → app 顺序内联到
+   index.html 的同一个 <script> 里，因此五个文件共享同一个作用域，
+   函数之间可以直接互相调用（没有 import/export）。
+   ===================================================================== */
 
   function sendPics(files){
     if(!S.cur || !files || !files.length) return;
@@ -1868,88 +2819,6 @@
     });
   }
 
-  /* ---------------- 全屏看图 ---------------- */
-  var V = { urls: [], idx: 0 };
-
-  function paintViewer(){
-    var img = $('#vImg'), cnt = $('#vCnt'), dot = $('#vDot');
-    if(!img) return;
-    img.src = V.urls[V.idx] || '';
-    img.style.transform = '';
-    if(cnt) cnt.textContent = V.urls.length > 1 ? (V.idx + 1) + ' / ' + V.urls.length : '';
-    if(dot){
-      dot.innerHTML = '';
-      if(V.urls.length > 1){
-        V.urls.forEach(function(_, k){
-          var d = document.createElement('i');
-          if(k === V.idx) d.className = 'on';
-          dot.appendChild(d);
-        });
-      }
-    }
-  }
-
-  function openViewer(urls, i){
-    V.urls = urls || []; V.idx = i || 0;
-    var v = $('#viewer');
-    if(!v) return;
-    v.classList.add('on');
-    paintViewer();
-  }
-
-  function closeViewer(){
-    var v = $('#viewer');
-    if(v) v.classList.remove('on');
-    var img = $('#vImg');
-    if(img){ img.src = ''; img.style.transform = ''; }
-  }
-
-  function viewerStep(d){
-    if(V.urls.length < 2) return;
-    V.idx = (V.idx + d + V.urls.length) % V.urls.length;
-    paintViewer();
-  }
-
-  function bindViewer(){
-    var v = $('#viewer');
-    if(!v) return;
-    $('#vClose').addEventListener('click', closeViewer);
-    v.addEventListener('click', function(e){ if(e.target === v) closeViewer(); });
-    /* 左右滑切换 + 双击缩放 */
-    var sx = 0, sy = 0, moved = false, zoom = 1;
-    var stage = $('#vStage'), img = $('#vImg');
-    stage.addEventListener('touchstart', function(e){
-      sx = e.touches[0].clientX; sy = e.touches[0].clientY; moved = false;
-    }, { passive: true });
-    stage.addEventListener('touchmove', function(e){
-      if(Math.abs(e.touches[0].clientX - sx) > 12) moved = true;
-    }, { passive: true });
-    stage.addEventListener('touchend', function(e){
-      var dx = (e.changedTouches[0].clientX - sx);
-      var dy = (e.changedTouches[0].clientY - sy);
-      if(moved && Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) viewerStep(dx < 0 ? 1 : -1);
-    });
-    img.addEventListener('dblclick', function(){
-      zoom = zoom === 1 ? 2 : 1;
-      img.style.transform = 'scale(' + zoom + ')';
-    });
-  }
-
-
-  function sendText(text){
-    if(!S.cur) return;
-    var cid = S.cur.id;
-    var key = uuid();
-    var mnt = extractMentions(text);
-    var node = addMsg({ sender_id: S.me.id, content: text, created_at: new Date().toISOString(),
-                        client_msg_id: key, mentions: mnt }, true, true);
-    if(!node) return;
-    S.pending[key] = { text: text, cid: cid, mentions: mnt };
-    delete S.ids['c:' + key];
-    scrollBottom();
-    deliver(key, node, text, cid);
-  }
-
   function deliver(key, node, text, cid, attempt){
     attempt = attempt || 0;
     var pg = S.pending[key];
@@ -2023,115 +2892,6 @@
     renderConvs();
   }
 
-  /* ---------------- 已读（FR-202）---------------- */
-  function markRead(){
-    if(!S.cur) return Promise.resolve();
-    var uid = S.sess.user.id, cid = S.cur.id;
-    /* 本地先清，保证立刻不显示角标；再把 last_read_at 写回服务端 */
-    S.cur.unread = 0;
-    S.convs.forEach(function(c){ if(c.id === cid) c.unread = 0; });
-    /* 记下「这个会话本地已读」的时间窗口：返回列表时不再等服务端写回，
-       但紧接着的 loadConvs 会带回还没更新的 unread，用这个标记压住，避免角标回闪 */
-    S.readMark[cid] = Date.now();
-    updateTabDot();
-    /* 关键：已读位点必须用「最后一条消息的服务器时间」，不能用手机本地时钟。
-       本地时钟比服务器慢几秒时，用 new Date() 会让最后一条消息永远算未读。 */
-    var at = S.lastAt || (S.cur.last && S.cur.last.created_at);
-    if(!at) return Promise.resolve();
-    return api('/rest/v1/conversation_members?conversation_id=eq.' + cid + '&user_id=eq.' + uid, {
-      method: 'PATCH', prefer: 'return=minimal', body: { last_read_at: at }
-    }).catch(function(){});
-  }
-
-  /* ---------------- 长按菜单 ---------------- */
-  function openSheet(items){
-    var sh = $('#sheet'), mk = $('#mask');
-    if(!sh) return;
-    sh.innerHTML = '';
-    var card = el('div', 'scard');
-    items.forEach(function(it){
-      var d = el('div', 'sitem' + (it.danger ? ' danger' : ''), it.label);
-      d.addEventListener('click', function(){ closeSheet(); if(it.fn) setTimeout(it.fn, 0); });
-      card.appendChild(d);
-    });
-    sh.appendChild(card);
-    var cancel = el('div', 'scancel', '取消');
-    cancel.addEventListener('click', closeSheet);
-    sh.appendChild(cancel);
-    if(mk) mk.classList.add('on');
-    sh.classList.add('on');
-  }
-  function closeSheet(){
-    var sh = $('#sheet'), mk = $('#mask');
-    if(sh) sh.classList.remove('on');
-    if(mk) mk.classList.remove('on');
-  }
-
-  function bindLongPress(node, fn){
-    var timer = 0, moved = false, sx = 0, sy = 0;
-    node.addEventListener('touchstart', function(e){
-      if(!e.touches || !e.touches.length) return;
-      moved = false;
-      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-      clearTimeout(timer);
-      timer = setTimeout(function(){ if(!moved) fn(); }, 480);
-    }, { passive: true });
-    node.addEventListener('touchmove', function(e){
-      if(!e.touches || !e.touches.length) return;
-      if(Math.abs(e.touches[0].clientX - sx) > 10 || Math.abs(e.touches[0].clientY - sy) > 10){
-        moved = true; clearTimeout(timer);
-      }
-    }, { passive: true });
-    node.addEventListener('touchend', function(){ clearTimeout(timer); }, { passive: true });
-    node.addEventListener('touchcancel', function(){ clearTimeout(timer); }, { passive: true });
-    node.addEventListener('contextmenu', function(e){ e.preventDefault(); fn(); });
-  }
-
-  /* 撤回窗口：以「消息创建时间」算 2 分钟。客户端时间只做前置判断，
-     真正说了算的是服务端 recall_message 里的 now() 校验。 */
-  var RECALL_MS = 120000;
-
-  function canRecall(m){
-    if(!m || !m.id || m.deleted_at) return false;
-    if(m.sender_id !== S.me.id) return false;
-    var t = m.created_at ? new Date(m.created_at).getTime() : 0;
-    if(!t) return false;
-    return (Date.now() - t) < RECALL_MS;
-  }
-
-  function msgMenu(wrap, m){
-    if(wrap.classList.contains('pending')){ toast('还在发送中…'); return; }
-    var items = [];
-    var isPic = (m.msg_type === 'image');
-    var pics = isPic ? parsePics(m.content) : null;
-
-    if(wrap.classList.contains('failed')){
-      items.push({ label: '重新发送', fn: function(){ retryMsg(wrap); } });
-    }
-    if(!m.deleted_at){
-      if(isPic && pics){
-        items.push({ label: '看大图', fn: function(){ openViewer(pics, 0); } });
-      } else {
-        items.push({ label: '复制', fn: function(){ copyText(m.content); } });
-      }
-      if(canRecall(m)){
-        items.push({ label: '撤回', fn: function(){ doRecall(wrap, m); } });
-      }
-    }
-    items.push({ label: '删除', danger: true, fn: function(){ deleteMsgLocal(wrap, m); } });
-    openSheet(items);
-  }
-
-  function paintRecalled(wrap, m){
-    var sid = (m && m.sender_id) || wrap.dataset.sender || '';
-    var mine = (sid === S.me.id);
-    var bub = wrap.querySelector('.bubble');
-    if(!bub) return;
-    bub.className = 'bubble recalled';
-    bub.innerHTML = '';
-    bub.textContent = mine ? '你撤回了一条消息' : '对方撤回了一条消息';
-  }
-
   function doRecall(wrap, m){
     return api('/rest/v1/rpc/recall_message', {
       method: 'POST', body: { p_msg: Number(m.id) }
@@ -2149,45 +2909,6 @@
       loadConvs().then(renderConvs).catch(function(){});
       toast('已撤回');
     }).catch(function(e){ toast(friendly(e && e.message)); });
-  }
-
-  function deleteMsgLocal(wrap, m){
-    if(!m.id){ wrap.remove(); return Promise.resolve(); }
-    return api('/rest/v1/rpc/delete_message_local', {
-      method: 'POST', body: { p_msg: Number(m.id) }
-    }).then(function(){
-      S.deletedIds[String(m.id)] = 1;
-      delete S.ids[m.id];
-      wrap.remove();
-      Object.keys(S.msgCache).forEach(function(cid){
-        var c = S.msgCache[cid];
-        c.rows = c.rows.filter(function(r){ return String(r.id) !== String(m.id); });
-        delete c.seen[m.id];
-      });
-      toast('已删除');
-    }).catch(function(e){ toast(friendly(e && e.message)); });
-  }
-
-  /* ================= P2-5 群聊 =================
-     群成员缓存 gMembers 一处多用：消息头像、发送者昵称、@ 选人。
-     所有群操作都走 RPC，前端不做权限判断，只按返回的 my_role 决定菜单是否显示。 */
-  var gMembers = [];
-  var gInfo = null;
-  var gSel = {};
-  var gMode = 'create';
-
-  function memberOf(uid){
-    for(var i = 0; i < gMembers.length; i++){
-      if(gMembers[i].user_id === uid) return gMembers[i];
-    }
-    return null;
-  }
-
-  function loadGroupMembers(cid){
-    if(!cid) return Promise.resolve([]);
-    return api('/rest/v1/rpc/list_group_members', { method: 'POST', body: { p_conv: cid } })
-      .then(function(rows){ gMembers = rows || []; return gMembers; })
-      .catch(function(){ gMembers = []; return []; });
   }
 
   /* 按 id 打开会话：群刚建好时列表里可能还没同步，先刷一次 */
@@ -2214,37 +2935,6 @@
       });
   }
 
-  function renderGroupList(rows){
-    var box = $('#groupList'), empty = $('#groupEmpty');
-    if(!box) return;
-    box.innerHTML = '';
-    rows = rows || [];
-    if(empty) empty.style.display = rows.length ? 'none' : 'flex';
-    /* 通讯录「群聊」上的数字 */
-    var cnt = $('#groupCnt');
-    if(cnt){
-      cnt.textContent = String(rows.length);
-      cnt.style.display = rows.length ? 'flex' : 'none';
-    }
-    rows.forEach(function(g){
-      var row = el('div', 'row');
-      row.dataset.gid = g.gid;
-      row.appendChild(el('div', 'ava gava', g.gavatar || '👥'));
-      var mid = el('div', 'mid');
-      var nm = el('div', 'nm');
-      nm.appendChild(document.createTextNode(g.gname || '群聊'));
-      if(g.my_role === 'owner') nm.appendChild(el('span', 't', '群主'));
-      mid.appendChild(nm);
-      mid.appendChild(el('div', 'ms', (Number(g.member_count) || 0) + ' 人'));
-      row.appendChild(mid);
-      var chev = el('div', 'chev', '›');
-      chev.style.cssText = 'align-self:center;font-size:18px;color:#c6bdd6;';
-      row.appendChild(chev);
-      row.addEventListener('click', function(){ openConvById(g.gid); });
-      box.appendChild(row);
-    });
-  }
-
   /* ---------------- 建群 / 邀请 ---------------- */
   function openGroupCreate(mode){
     gMode = mode || 'create';
@@ -2255,46 +2945,6 @@
     if(ttl) ttl.textContent = (gMode === 'create') ? '选择联系人' : '邀请好友进群';
     goScreen('groupcreate');
     renderGcList();
-  }
-
-  function gcFriendKey(f){ return f.user_id; }
-
-  function renderGcList(){
-    var box = $('#gcList'), sel = $('#gcSel'), empty = $('#gcEmpty');
-    if(!box) return;
-    box.innerHTML = '';
-    if(sel) sel.innerHTML = '';
-    var fs = S.friends || [];
-    if(empty) empty.style.display = fs.length ? 'none' : 'flex';
-
-    /* 已选头像条 */
-    fs.forEach(function(f){
-      if(!gSel[gcFriendKey(f)]) return;
-      var gp = el('div', 'gp');
-      gp.appendChild(avaImg(f.avatar || 'ava_cat'));
-      gp.addEventListener('click', function(){ delete gSel[gcFriendKey(f)]; renderGcList(); });
-      if(sel) sel.appendChild(gp);
-    });
-
-    fs.forEach(function(f){
-      var key = gcFriendKey(f);
-      /* 用通讯录同款 .ccell 白卡行，避免选人页看起来像另一套 UI */
-      var row = el('div', 'ccell');
-      row.dataset.uid = key;
-      var av = el('div', 'ava');
-      av.appendChild(avaImg(f.avatar || 'ava_cat'));
-      row.appendChild(av);
-      row.appendChild(el('div', 'nm', f.remark || f.nickname));
-      var on = !!gSel[key];
-      row.appendChild(el('div', 'gchk' + (on ? ' on' : ''), on ? '✓' : ''));
-      row.addEventListener('click', function(){
-        if(gSel[key]) delete gSel[key]; else gSel[key] = 1;
-        renderGcList();
-      });
-      box.appendChild(row);
-    });
-    fillImgIn(box);
-    fillImgIn(sel);
   }
 
   function doCreateGroup(){
@@ -2342,13 +2992,6 @@
       .catch(function(e){ done(); toast(friendly(e && e.message)); });
   }
 
-  /* ---------------- 群信息 ---------------- */
-  function loadGroupInfo(cid){
-    return api('/rest/v1/rpc/get_group_info', { method: 'POST', body: { p_conv: cid } })
-      .then(function(rows){ gInfo = (rows && rows[0]) || null; return gInfo; })
-      .catch(function(){ gInfo = null; return null; });
-  }
-
   function openGroupInfo(){
     if(!S.cur || S.cur.ctype !== 'group') return Promise.resolve();
     var cid = S.cur.id;
@@ -2358,57 +3001,6 @@
     return Promise.all([loadGroupMembers(cid), loadGroupInfo(cid)])
       .then(renderGroupInfo)
       .catch(function(e){ toast(friendly(e && e.message)); });
-  }
-
-  function renderGroupInfo(){
-    var box = $('#gMembers');
-    if(box){
-      box.innerHTML = '';
-      gMembers.forEach(function(m){
-        var gc = el('div', 'gc');
-        var av = el('div', 'ava');
-        av.appendChild(avaImg(m.gavatar || 'ava_cat'));
-        gc.appendChild(av);
-        gc.appendChild(el('div', 'gn', m.nickname + (m.is_me ? '（我）' : '')));
-        if(m.role === 'owner') gc.appendChild(el('div', 'gr', '群主'));
-        else if(m.role === 'admin') gc.appendChild(el('div', 'gr', '管理员'));
-        gc.addEventListener('click', function(){ memberMenu(m); });
-        box.appendChild(gc);
-      });
-      /* 邀请入口做成最后一格「+」，比放在右上角更好点 */
-      if(gInfo){
-        var add = el('div', 'gc');
-        var av2 = el('div', 'ava');
-        av2.style.cssText = 'font-size:22px;color:#c6bdd6;background:#faf7ff;';
-        av2.textContent = '＋';
-        add.appendChild(av2);
-        add.appendChild(el('div', 'gn', '邀请'));
-        add.addEventListener('click', function(){ openGroupCreate('invite'); });
-        box.appendChild(add);
-      }
-      fillImgIn(box);
-    }
-    if(gInfo){
-      if($('#gNameVal')) $('#gNameVal').textContent = gInfo.gname || '群聊';
-      if($('#gCountVal')) $('#gCountVal').textContent = (Number(gInfo.member_count) || gMembers.length) + ' 人';
-      if($('#gCodeVal')) $('#gCodeVal').textContent = (S.cur && S.cur.code) || '-';
-      var lb = $('#btnLeaveGroup');
-      if(lb && lb.querySelector('span')){
-        var mine = (gInfo.owner_id === S.sess.user.id);
-        var only = (Number(gInfo.member_count) || 1) <= 1;
-        lb.querySelector('span').textContent = mine ? (only ? '解散该群聊' : '退出并转让群主') : '退出群聊';
-      }
-    }
-  }
-
-  function memberMenu(m){
-    var myRole = (gInfo && gInfo.my_role) || 'member';
-    var items = [];
-    if(!m.is_me && m.role !== 'owner' && (myRole === 'owner' || (myRole === 'admin' && m.role === 'member'))){
-      items.push({ label: '移出群聊', danger: true, fn: function(){ doRemoveMember(m); } });
-    }
-    if(!items.length){ toast(m.nickname); return; }
-    openSheet(items);
   }
 
   function doRemoveMember(m){
@@ -2464,37 +3056,6 @@
     ]);
   }
 
-  /* ---------------- @ 提及 ---------------- */
-  var atQuery = '';
-
-  function closeAtBox(){
-    var box = $('#atBox');
-    if(box) box.classList.remove('on');
-  }
-
-  function renderAtBox(q){
-    var box = $('#atBox');
-    if(!box) return;
-    box.innerHTML = '';
-    var list = gMembers.filter(function(m){
-      if(m.is_me) return false;
-      return !q || m.nickname.indexOf(q) > -1;
-    }).slice(0, 24);
-    if(!list.length){ box.classList.remove('on'); return; }
-    list.forEach(function(m){
-      var it = el('div', 'ait');
-      var av = el('div', 'ava');
-      av.appendChild(avaImg(m.gavatar || 'ava_cat'));
-      it.appendChild(av);
-      it.appendChild(el('div', '', m.nickname));
-      it.addEventListener('mousedown', function(ev){ ev.preventDefault(); pickAt(m); });
-      it.addEventListener('click', function(){ pickAt(m); });
-      box.appendChild(it);
-    });
-    fillImgIn(box);
-    box.classList.add('on');
-  }
-
   function onAtInput(){
     if(!S.cur || S.cur.ctype !== 'group'){ closeAtBox(); return; }
     var v = inp.value, pos = inp.selectionStart;
@@ -2512,126 +3073,6 @@
     renderAtBox(atQuery);
   }
 
-  function pickAt(m){
-    var v = inp.value, pos = inp.selectionStart;
-    if(typeof pos !== 'number') pos = v.length;
-    var at = v.lastIndexOf('@', pos - 1);
-    if(at < 0) at = pos;
-    var head = v.slice(0, at);
-    var tail = v.slice(pos);
-    var ins = '@' + m.nickname + ' ';
-    inp.value = head + ins + tail;
-    var np = (head + ins).length;
-    try{ inp.selectionStart = inp.selectionEnd = np; }catch(e){}
-    closeAtBox();
-    autoGrow(); refreshSend();
-  }
-
-  function insertAtSign(){
-    if(!inp) return;
-    var v = inp.value, pos = inp.selectionStart;
-    if(typeof pos !== 'number') pos = v.length;
-    inp.value = v.slice(0, pos) + '@' + v.slice(pos);
-    try{ inp.selectionStart = inp.selectionEnd = pos + 1; }catch(e){}
-    autoGrow(); refreshSend(); onAtInput();
-  }
-
-  /* 从文本里反推被 @ 的人：按「@昵称」精确命中，避免把「@」后随便打的字当成提及 */
-  function extractMentions(text){
-    if(!S.cur || S.cur.ctype !== 'group') return null;
-    if(S.mentionsOff) return null;
-    text = String(text || '');
-    if(text.indexOf('@') < 0) return null;
-    var ids = [];
-    gMembers.forEach(function(m){
-      if(m.is_me) return;
-      if(m.nickname && text.indexOf('@' + m.nickname) > -1) ids.push(m.user_id);
-    });
-    return ids.length ? ids : null;
-  }
-
-  /* 文本气泡渲染：把 @昵称 包成 span，其余一律走文本节点（不用 innerHTML，避免注入） */
-  function renderRichText(container, text, mentions){
-    text = String(text == null ? '' : text);
-    if(!mentions || !mentions.length){ container.textContent = text; return; }
-    var names = [];
-    mentions.forEach(function(uid){
-      var m = memberOf(uid);
-      if(m && m.nickname) names.push(m.nickname);
-    });
-    if(!names.length){ container.textContent = text; return; }
-    /* 长名字优先，否则「@张三丰」会被「@张三」先切走 */
-    names.sort(function(a, b){ return b.length - a.length; });
-    var esc = names.map(function(n){ return n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
-    var re = new RegExp('@(' + esc.join('|') + ')', 'g');
-    var last = 0, mt;
-    while((mt = re.exec(text))){
-      if(mt.index > last) container.appendChild(document.createTextNode(text.slice(last, mt.index)));
-      container.appendChild(el('span', 'mention', '@' + mt[1]));
-      last = mt.index + mt[0].length;
-    }
-    if(last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
-  }
-
-  /* 成员信息晚到时的补救：缓存先渲染、成员后到，把昵称和头像补上 */
-  function refreshSenders(){
-    if(!S.cur || S.cur.ctype !== 'group' || !msgsBox) return;
-    var nodes = msgsBox.querySelectorAll('.msg.in[data-sender]');
-    for(var i = 0; i < nodes.length; i++){
-      var n = nodes[i], gm = memberOf(n.dataset.sender);
-      if(!gm) continue;
-      var col = n.querySelector('.col');
-      if(col && !col.querySelector('.msender')){
-        col.insertBefore(el('div', 'msender', gm.nickname), col.firstChild);
-      }
-      var img = n.querySelector('img.a');
-      if(img){
-        var k = pickKey(gm.gavatar || 'ava_cat');
-        if(img.getAttribute('data-k') !== k) img.setAttribute('data-k', k);
-      }
-    }
-    fillImgIn(msgsBox);
-  }
-
-  function convMenu(c){
-    var items = [];
-    items.push({
-      label: c.pinned_at ? '取消置顶' : '置顶聊天',
-      fn: function(){ setFlags(c, !c.pinned_at, null); }
-    });
-    items.push({
-      label: c.mute ? '关闭消息免打扰' : '消息免打扰',
-      fn: function(){ setFlags(c, null, !c.mute); }
-    });
-    items.push({ label: '标为未读', fn: function(){ markConvUnread(c); } });
-    items.push({ label: '删除该聊天', danger: true, fn: function(){ hideConv(c); } });
-    openSheet(items);
-  }
-
-  /* 标为未读：位点退到倒数第二条，交给服务端算 */
-  function markConvUnread(c){
-    delete S.readMark[c.id];       /* 别让本地「刚已读」窗口把它压回 0 */
-    return api('/rest/v1/rpc/mark_conversation_unread', {
-      method: 'POST', body: { p_conv: c.id }
-    }).then(function(){
-      return loadConvs();
-    }).then(function(){
-      renderConvs();
-      toast('已标为未读');
-    }).catch(function(e){ toast(friendly(e && e.message)); });
-  }
-
-  /* 删除会话：PRD 要求「仅删本地、对方无感、收到新消息重新出现」，
-     所以记在 localStorage 里（cid -> 删除时刻），不碰服务端。 */
-  function readHidden(){
-    try{
-      var o = JSON.parse(localStorage.getItem('jw_hidden_convs') || '{}');
-      return (o && typeof o === 'object') ? o : {};
-    }catch(e){ return {}; }
-  }
-  function writeHidden(o){
-    try{ localStorage.setItem('jw_hidden_convs', JSON.stringify(o)); }catch(e){}
-  }
   function hideConv(c){
     var o = readHidden();
     o[c.id] = Date.now();
@@ -2639,35 +3080,6 @@
     S.convs = S.convs.filter(function(x){ return x.id !== c.id; });
     renderConvs();
     toast('已删除（对方发新消息会重新出现）');
-  }
-
-  function setFlags(c, pinned, mute){
-    return api('/rest/v1/rpc/set_conversation_flags', {
-      method: 'POST',
-      body: { p_conv: c.id, p_pinned: pinned, p_mute: mute }
-    }).then(function(){
-      if(pinned !== null && pinned !== undefined) c.pinned_at = pinned ? new Date().toISOString() : null;
-      if(mute !== null && mute !== undefined) c.mute = !!mute;
-      return loadConvs();
-    }).then(function(){
-      renderConvs();
-      toast('设置好了');
-    }).catch(function(e){ toast(friendly(e.message)); });
-  }
-
-  function copyText(t){
-    function fallback(){
-      var ta = document.createElement('textarea');
-      ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      var done = false;
-      try{ done = document.execCommand('copy'); }catch(e){ done = false; }
-      document.body.removeChild(ta);
-      toast(done ? '已复制' : '复制失败，长按文字手动选');
-    }
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(t).then(function(){ toast('已复制'); }).catch(fallback);
-    }else fallback();
   }
 
   /* ---------------- 打开会话 ---------------- */
@@ -2729,41 +3141,6 @@
   /* 撤回同步（轻量）：只查这个会话里 deleted_at 非空的消息 id。
      为什么不靠增量拉取：fetchMessages(false) 用 id=gt.lastId，撤回的往往是旧消息，
      永远落不进这个窗口，不补这一刀就会出现「对方撤回了但我这边还显示原文」。 */
-  function syncRecalled(cid){
-    if(!cid) return Promise.resolve();
-    return api('/rest/v1/messages?select=id,deleted_at&conversation_id=eq.' + cid + '&deleted_at=not.is.null')
-      .then(function(rows){
-        (rows || []).forEach(function(r){
-          var c = S.msgCache[cid];
-          if(c){
-            c.rows.forEach(function(x){
-              if(String(x.id) === String(r.id) && !x.deleted_at){
-                x.deleted_at = r.deleted_at; x.content = '';
-              }
-            });
-          }
-          if(!msgsBox) return;
-          var wrap = msgsBox.querySelector('.msg[data-id="' + r.id + '"]');
-          if(wrap && !wrap.querySelector('.bubble.recalled')) paintRecalled(wrap, null);
-        });
-      })
-      .catch(function(){});
-  }
-
-  function bannerUpdate(){
-    var b = $('#chatBanner'); if(!b) return;
-    if(!navigator.onLine){
-      b.style.display = 'block'; b.className = 'banner warn';
-      b.textContent = '现在没网哦，消息会等你联网后再同步';
-      return;
-    }
-    if(S.cur && !S.cur.peer_id){
-      b.style.display = 'block'; b.className = 'banner';
-      b.textContent = '对方还没进来 · 邀请码 ' + (S.cur.code || '------');
-      return;
-    }
-    b.style.display = 'none';
-  }
 
   function openFriend(f){
     var c = f.conv_id ? S.convs.filter(function(x){ return x.id === f.conv_id; })[0] : null;
@@ -2776,22 +3153,6 @@
           if(t) return openConv(t);
         });
       }).catch(function(e){ toast(friendly(e.message)); });
-  }
-
-  /* ---------------- 加好友 ---------------- */
-  function mailOK(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim()); }
-
-  /* 一个输入框通吃三种凭据：邮箱 / 手机号 / 果冻号。
-     判断顺序必须与后端 resolve_user_key 保持一致，
-     否则会出现「本地判不合法、后端其实查得到」的互相打架。 */
-  function keyKind(v){
-    var k = String(v || '').trim();
-    if(!k) return 'empty';
-    if(k.indexOf('@') > 0) return mailOK(k) ? 'mail' : 'bad';
-    if(!/^[0-9]+$/.test(k)) return 'bad';
-    if(k.length === 11 && k.charAt(0) === '1') return 'phone';
-    if(k.length === 7) return 'jelly';
-    return 'bad';
   }
 
   function searchUser(silent){
@@ -2834,79 +3195,13 @@
   /* 重进「添加朋友」页时悄悄把上次查到的那个人的状态刷一遍。
      用户抱怨的「申请状态没更新」就是这个：DOM 留着上次的卡片，
      但对方这会儿可能已经点通过了，按钮还停在「已申请，等通过」。 */
+
   function refreshHit(){
     var box = $('#hitBox');
     if(!box || !box.firstChild) return;                    /* 本来就没搜过，别自作多情 */
     var inp = $('#iSearchKey');
     if(inp && !inp.value && S.lastKey) inp.value = S.lastKey;
     searchUser(true);
-  }
-
-  /* 新 RPC 还没部署时自动退回「只认邮箱」的老接口 —— 加好友不能整个挂掉 */
-  function findUser(key, kind){
-    if(!S.noFindV2){
-      return api('/rest/v1/rpc/find_user_v2', { method: 'POST', body: { p_key: key } })
-        .then(function(rows){ return (rows && rows[0]) || null; })
-        .catch(function(e){
-          if(e && (e.status === 400 || e.status === 404)){ S.noFindV2 = true; return findUser(key, kind); }
-          throw e;
-        });
-    }
-    if(kind !== 'mail') return Promise.reject(new Error('服务器还是旧版本，暂时只能用邮箱加好友'));
-    return api('/rest/v1/rpc/find_user', { method: 'POST', body: { p_email: key } })
-      .then(function(rows){ return (rows && rows[0]) || null; });
-  }
-
-  function renderHit(u, key){
-    var box = $('#hitBox'); if(!box) return;
-    box.innerHTML = '';
-    var card = el('div', 'hit');
-    card.dataset.uid = u.id;
-    var ava = el('div', 'ava'); ava.appendChild(avaImg(u.avatar));
-    var mid = el('div', 'mid');
-    mid.appendChild(el('div', 'nm', u.nickname || '有人'));
-
-    /* 副标题按「越不敏感越靠前」排：果冻号 → 脱敏手机号 → 脱敏邮箱，每条一行。
-       没邮箱的账号也会有果冻号，所以这里不会出现空白。 */
-    var bits = [];
-    if(u.jelly_id) bits.push('果冻号 ' + u.jelly_id);
-    if(u.phone_masked) bits.push(u.phone_masked);
-    if(u.email_masked) bits.push(u.email_masked);
-    var sub = el('div', 'sub');
-    if(bits.length){
-      bits.forEach(function(t){ sub.appendChild(el('div', '', t)); });
-    }else{
-      sub.textContent = maskEmail(key);
-    }
-    mid.appendChild(sub);
-
-    var src = { phone: '手机号命中', email: '邮箱命中', jelly: '果冻号命中' }[u.hit_by];
-    if(src) mid.appendChild(el('div', 'src', src));
-
-    card.appendChild(ava); card.appendChild(mid);
-
-    var label, ghost = false;
-    if(u.relation === 'self'){ label = '这是你自己'; ghost = true; }
-    else if(u.relation === 'friend'){ label = '发消息'; }
-    else if(u.relation === 'pending_out'){ label = '已申请，等通过'; ghost = true; }
-    else if(u.relation === 'pending_in'){ label = '通过申请'; }
-    else { label = '添加到通讯录'; }
-
-    var b = el('button', 'mini-btn' + (ghost ? ' ghost' : ''), label);
-    b.type = 'button';
-    b.addEventListener('click', function(){
-      if(u.relation === 'self'){ toast('这就是你自己呀'); return; }
-      if(u.relation === 'pending_out'){ toast('已经申请过啦，等对方通过'); return; }
-      if(u.relation === 'friend'){
-        var c = S.convs.filter(function(x){ return x.peer_id === u.id; })[0];
-        if(c) openConv(c); else openFriend({ user_id: u.id });
-        return;
-      }
-      sendFriendRequest(key);
-    });
-    card.appendChild(b);
-    box.appendChild(card);
-    if(window.__fillImg) window.__fillImg();
   }
 
   function sendFriendRequest(key){
@@ -2949,65 +3244,12 @@
         });
       }).catch(function(e){ toast(friendly(e.message)); });
   }
+
   function rejectReq(r){
     return api('/rest/v1/rpc/reject_friend', { method: 'POST', body: { p_id: r.id } })
       .then(function(){ return loadRequests(); })
       .then(function(){ renderRequests(); toast('已拒绝'); })
       .catch(function(e){ toast(friendly(e.message)); });
-  }
-
-  /* ---------------- 「我」页 / 资料编辑 ---------------- */
-  function renderMe(){
-    if(!S.sess) return;
-    var n = $('#meName'); if(n) n.textContent = S.me.nickname || '我的萌将';
-    /* 有的账号压根没有邮箱（手机号注册 / 后台手工建号），这时主标识换成「果冻号」，
-       别给用户看「未设置邮箱」这种自我否定的话 */
-    var m = $('#meMail');
-    if(m) m.textContent = (S.me.jelly_id ? '果冻号 ' + S.me.jelly_id : '果冻号生成中')
-      + (S.me.email ? ' · ' + maskEmail(S.me.email) : '');
-    /* 「我」页列表里那一行，点一下就能复制——用户找「我的号」一般点这里 */
-    var jv = $('#meJellyVal'); if(jv) jv.textContent = S.me.jelly_id || '生成中';
-    var ava = $('#meAva');
-    if(ava){ ava.removeAttribute('src'); ava.setAttribute('data-k', pickKey(S.me.avatar)); }
-    renderJellyHint();
-    var unread = 0; S.convs.forEach(function(c){ unread += (c.unread || 0); });
-    var f1 = $('#stFriends'); if(f1) f1.textContent = S.friends.length;
-    var f2 = $('#stRooms'); if(f2) f2.textContent = S.convs.length;
-    var f3 = $('#stUnread'); if(f3) f3.textContent = unread;
-    if(window.__fillImg) window.__fillImg();
-  }
-
-  /* 添加朋友页顶部那句「你的果冻号：xxxxxxx」+「我」页头部的复制胶囊 */
-  function renderJellyHint(){
-    var h = $('#myJellyHint');
-    if(h) h.textContent = S.me.jelly_id || '待生成';
-    ['#btnCopyJelly', '#btnCopyJelly2'].forEach(function(sel){
-      var b = $(sel);
-      if(b) b.style.display = S.me.jelly_id ? 'inline-block' : 'none';
-    });
-  }
-
-  function renderAvaPick(){
-    var box = $('#avaPick'); if(!box) return;
-    box.innerHTML = '';
-    PRESET.forEach(function(k){
-      var d = el('div', 'ap' + (S.me.avatar === k ? ' on' : ''));
-      d.dataset.k = k;
-      d.appendChild(avaImg(k));
-      d.addEventListener('click', function(){
-        S.me.avatar = k;
-        $$('#avaPick .ap').forEach(function(x){ x.classList.toggle('on', x.dataset.k === k); });
-      });
-      box.appendChild(d);
-    });
-    if(window.__fillImg) window.__fillImg();
-  }
-
-  function openProfile(){
-    var i = $('#iNick'); if(i) i.value = S.me.nickname || '';
-    var e = $('#pErr'); if(e) e.textContent = '';
-    renderAvaPick();
-    goPage('profile', 'me');
   }
 
   function saveProfile(){
@@ -3117,6 +3359,7 @@
       fetchMessages(false).then(function(rows){ if(rows.length) markRead(); }).catch(function(){});
     }, 1500);
   }
+
   function stopChatPoll(){ if(S.chatT){ clearInterval(S.chatT); S.chatT = 0; } }
 
   function startListPoll(){
@@ -3126,6 +3369,7 @@
       loadConvs().then(renderConvs).catch(function(){});
     }, 3000);
   }
+
   function stopListPoll(){ if(S.listT){ clearInterval(S.listT); S.listT = 0; } }
 
   function startReqPoll(){
@@ -3139,17 +3383,6 @@
       }).catch(function(){});
     }, 15000);
   }
-
-  /* ---------------- 聊天输入 ---------------- */
-  var inp = $('#msgInput'), sendBtn = $('#sendBtn');
-
-  function autoGrow(){
-    if(!inp) return;
-    inp.style.height = 'auto';
-    var h = inp.scrollHeight;
-    inp.style.height = (h > 20) ? Math.min(h, 88) + 'px' : '';
-  }
-  function refreshSend(){ if(sendBtn && inp) sendBtn.disabled = inp.value.trim().length === 0; }
 
   function doSend(){
     if(!S.cur) return;
@@ -3177,64 +3410,6 @@
   /* ---------------- 表情面板（P2 / FR-308）----------------
      行为对齐微信：点表情是「插入输入框」，不是直接发出去（可以连点拼一条）。
      分类：最近 / 常用 / 笑脸 / 手势 / 动物 / 符号，「最近」为空时不显示该 tab。 */
-  var EMOJI = {
-    '常用': ['😀','😂','🥰','😍','😊','😭','😅','😉','🙃','😎','🤔','😴','🥳','😤','😇','😳',
-             '🤣','🥺','😶','🤗','🤩','😬','🫠','🥴'],
-    '笑脸': ['😃','😄','😁','😆','🤣','🙂','😌','🥲','😋','😛','🤪','🤨','🧐','😏','🥹','😜',
-             '😝','😗','😙','😚','🤭','🫢','😑','😐'],
-    '手势': ['👍','👎','👌','✌️','🤞','🤟','🤘','👏','🙌','🤝','🙏','💪','👋','🖐️','🤙','✊',
-             '👆','👇','👉','👈','✋','🫰','🫱','🫲'],
-    '动物': ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔',
-             '🐧','🐦','🐤','🦄','🐝','🦋','🐢','🐙'],
-    '符号': ['❤️','💔','💯','✨','🔥','⭐','🎉','🎊','💡','⚠️','❓','❗','💤','☀️','🌙','⚡',
-             '✅','❌','⭕','💢','💫','🎵','🎶','🌟']
-  };
-  var EMO_CATS = ['最近', '常用', '笑脸', '手势', '动物', '符号'];
-  var emoCat = '常用';
-
-  function recentEmos(){
-    try{
-      var a = JSON.parse(localStorage.getItem('jw_emoji_recent') || '[]');
-      return Array.isArray(a) ? a : [];
-    }catch(e){ return []; }
-  }
-  function pushRecentEmo(e){
-    var a = recentEmos().filter(function(x){ return x !== e; });
-    a.unshift(e);
-    try{ localStorage.setItem('jw_emoji_recent', JSON.stringify(a.slice(0, 16))); }catch(err){}
-  }
-
-  /* 纯 emoji 且 ≤3 个 → 返回个数，否则 0（用于大表情，B-03） */
-  function emojiCount(s){
-    s = String(s == null ? '' : s).trim();
-    if(!s) return 0;
-    try{
-      var hit = s.match(/\p{Extended_Pictographic}/gu);
-      if(!hit) return 0;
-      var rest = s.replace(/\p{Extended_Pictographic}|\uFE0F|\u200D|[\u{1F3FB}-\u{1F3FF}]|\s/gu, '');
-      return rest.length ? 0 : hit.length;
-    }catch(e){ return 0; }
-  }
-
-  function renderEmo(){
-    var tabs = $('#emoTabs'), grid = $('#emoGrid');
-    if(!tabs || !grid) return;
-    var cats = EMO_CATS.filter(function(c){ return c !== '最近' || recentEmos().length; });
-    if(cats.indexOf(emoCat) < 0) emoCat = cats[0];
-    tabs.innerHTML = '';
-    cats.forEach(function(c){
-      var t = el('div', 'et' + (c === emoCat ? ' on' : ''), c);
-      t.addEventListener('click', function(){ emoCat = c; renderEmo(); });
-      tabs.appendChild(t);
-    });
-    grid.innerHTML = '';
-    var list = (emoCat === '最近') ? recentEmos() : (EMOJI[emoCat] || []);
-    list.forEach(function(e){
-      var sp = el('span', '', e);
-      sp.addEventListener('click', function(){ insertEmoji(e); });
-      grid.appendChild(sp);
-    });
-  }
 
   /* 插入到光标位置（不覆盖已选中的后半段），并保持焦点继续打字 */
   function insertEmoji(e){
@@ -3249,20 +3424,6 @@
     autoGrow(); refreshSend();
   }
 
-  function toggleEmo(force){
-    var p = $('#emoPanel');
-    if(!p) return;
-    var on = (force === undefined) ? !p.classList.contains('on') : !!force;
-    p.classList.toggle('on', on);
-    if(on){
-      if(inp) inp.blur();          /* 收键盘，否则面板会被键盘挡住 */
-      renderEmo();
-      setTimeout(scrollBottom, 260);
-    }
-  }
-
-  /* ---------------- 选图发图（P2）---------------- */
-  var pickBtn = $('#btnPickImg'), filePick = $('#filePick');
   if(pickBtn && filePick){
     pickBtn.addEventListener('click', function(){
       if(!S.cur){ toast('先选一个聊天'); return; }
@@ -3300,26 +3461,8 @@
       sendPics(picked);
     });
   }
-  bindViewer();
 
-  /* ---------------- 登录界面 ---------------- */
-  function resetLogin(){
-    var m = $('#iMail'), p = $('#iPass');
-    if(m) m.value = '';
-    if(p) p.value = '';
-    var e = $('#lErr'); if(e) e.textContent = '';
-    var b = $('#btnLogin');
-    if(b){ b.classList.remove('loading'); b.classList.add('dim'); b.innerHTML = '<span>' + (S.authMode === 'in' ? '进入果冻微信' : '注册并进入') + '</span>'; }
-    refreshLogin();
-  }
-  function refreshLogin(){
-    var m = ($('#iMail') || {}).value || '';
-    var p = ($('#iPass') || {}).value || '';
-    var ok = mailOK(m) && p.length >= 6;
-    var b = $('#btnLogin'); if(b) b.classList.toggle('dim', !ok);
-    return ok;
-  }
-  function shake(node){ if(!node) return; node.classList.remove('shake'); void node.offsetWidth; node.classList.add('shake'); }
+  bindViewer();
 
   (function bindAuth(){
     var sw = $('#lSwitch');
@@ -3449,6 +3592,7 @@
     goScreen('login');
     resetLogin();
   }
+
   $$('[data-logout]').forEach(function(x){ x.addEventListener('click', doLogout); });
 
   /* ---------------- 登录后进入 ---------------- */
@@ -3484,7 +3628,9 @@
       goPage(name, curTab);
     });
   });
+
   $$('[data-back]').forEach(function(x){ x.addEventListener('click', back); });
+
   $$('[data-like]').forEach(function(x){
     x.addEventListener('click', function(){
       x.classList.toggle('on');
@@ -3496,35 +3642,53 @@
     var n = $(id);
     if(n) n.addEventListener(ev, fn);
   }
+
   bind('#btnAddFriend', 'click', function(){ goPage('addfriend', 'contacts'); });
+
   bind('#btnAddFriend2', 'click', function(){ goPage('addfriend', 'contacts'); });
+
   bind('#cellAddFriendM', 'click', function(){ goPage('addfriend', 'me'); });
+
   bind('#cellNewFriends', 'click', function(){
     goPage('newfriends', 'contacts');
     loadRequests().then(renderRequests).catch(function(){});
   });
+
   bind('#cellGroups', 'click', function(){ toast('群聊在下一阶段开放哦'); });
+
   bind('#btnGoAdd', 'click', function(){ goPage('addfriend', 'chat'); });
+
   bind('#btnGoRoom2', 'click', function(){ goRoom(); });
+
   bind('#meHead', 'click', function(){ openProfile(); });
+
   bind('#btnSaveProfile', 'click', function(){ saveProfile(); });
+
   bind('#btnSearchUser', 'click', function(){ searchUser(); });
+
   bind('#iSearchKey', 'keydown', function(e){
     if(e.key === 'Enter'){ e.preventDefault(); searchUser(); }
   });
   /* 果冻号是给朋友看的，得能一键复制发出去。
      「我」页头部那个胶囊在 meHead 里面，点击会冒泡去开资料页，所以必须掐掉冒泡。 */
+
   function copyJelly(e){
     if(e && e.stopPropagation) e.stopPropagation();
     if(!S.me.jelly_id){ toast('果冻号还没生成，稍后再试'); return; }
     copyText(S.me.jelly_id);
     toast('果冻号已复制，发给朋友就能加你 ✧', 2200);
   }
+
   bind('#btnCopyJelly', 'click', copyJelly);
+
   bind('#btnCopyJelly2', 'click', copyJelly);
+
   bind('#cellMyJelly', 'click', copyJelly);
+
   bind('#iFriendFilter', 'input', function(){ S.filter = this.value; renderFriends(); });
+
   bind('#mask', 'click', function(){ closeSheet(); });
+
   bind('#btnChatCode', 'click', function(){
     if(!S.cur) return;
     if(S.cur.code) copyText(S.cur.code);
@@ -3538,7 +3702,9 @@
     if(bar) bar.classList.toggle('on', off);
     bannerUpdate();
   }
+
   window.addEventListener('online', function(){ syncOnline(); toast('网络回来了 ✧'); });
+
   window.addEventListener('offline', function(){ syncOnline(); toast('断网了，消息先攒着'); });
 
   /* FR-1004：切后台再回来，立即补拉，不等下一轮轮询 */
@@ -3583,7 +3749,7 @@
      用户手指滑动聊天记录时，iOS 也会触发 vv.scroll 并改变 offsetTop，
      若此时把 offsetTop 写进 --vt，容器 top 会跟着手指反向移动，
      表现出来就是「向上滑，页面反而向下滚」，且松手后停止触发才恢复正常。 */
-  var vvFit = function(){};
+
   (function(){
     var vv = window.visualViewport; if(!vv) return;
     var baseH = Math.round(vv.height) || window.innerHeight || 0;
@@ -3618,6 +3784,7 @@
      v9 及更早的 SW 把跨源 API 的 GET 响应也写进了 CacheStorage，导致同一会话永远
      返回首次那份结果（新消息看不到）。v10 已改成跨源一律放行，但已安装的用户设备上
      旧缓存还在。这里在启动时主动删一次，让打开 App 就能看到真实消息，不必等 SW 换掉。 */
+
   try{
     if(window.caches && caches.keys){
       caches.keys().then(function(ks){
@@ -3636,7 +3803,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.16:22';
+    var BUILD='1029.16:44';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
