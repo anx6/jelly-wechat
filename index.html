@@ -68,6 +68,39 @@
   .msg.out .bubble{background:var(--pink);color:#fff;box-shadow:3px 3px 0 rgba(255,46,136,.35);border-bottom-right-radius:5px;}
   .voice{display:flex;align-items:center;gap:8px;}
   .wave{letter-spacing:1px;}
+
+  /* ===== P2：图片消息（FR-303 / B-04）===== */
+  /* 纯图片气泡去掉文字气泡的外壳，让图自己当容器 */
+  .bubble.imgonly{padding:0;background:transparent;border:none;box-shadow:none;max-width:74%;line-height:0;}
+  .msg.out .bubble.imgonly{background:transparent;box-shadow:none;}
+  .pic{display:block;width:min(176px,52vw);height:min(176px,52vw);object-fit:cover;border:3px solid var(--ink);border-radius:16px;background:#fff;box-shadow:3px 3px 0 rgba(26,26,46,.12);}
+  .msg.in .pic{border-bottom-left-radius:5px;}
+  .msg.out .pic{border-bottom-right-radius:5px;box-shadow:3px 3px 0 rgba(255,46,136,.25);}
+  /* 九宫格：2–4 张两列，5–9 张三列（同微信）。
+     宽度用 calc 收到「屏宽 - 头像 - 边距」，否则 320px 小屏上三列会顶出屏幕 */
+  .pics{display:grid;gap:5px;}
+  .pics.c2{grid-template-columns:repeat(2,1fr);width:min(186px,calc(100vw - 104px));}
+  .pics.c3{grid-template-columns:repeat(3,1fr);width:min(258px,calc(100vw - 104px));}
+  /* 注意：这里必须带 .msg 前缀，否则优先级低于上面的 .msg.out .pic，
+     九宫格里每张图仍会带 3px 粉色投影 + 右下角 5px 圆角，格子之间互相压边 */
+  .msg .pics .pic{width:100%;height:auto;aspect-ratio:1/1;border-radius:12px;box-shadow:none;min-width:0;}
+  .pics .pic:active{opacity:.85;}
+  .msg.pending .pics .pic,.msg.pending .pic{opacity:.5;}
+  /* 上传中的蒙层数字（第几张） */
+  .pics .up{position:relative;}
+  .pics .up::after{content:attr(data-up);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0007;color:#fff;font-weight:800;font-size:14px;border-radius:12px;}
+
+  /* 全屏看图 */
+  .viewer{position:fixed;inset:0;z-index:200;background:#000;display:none;align-items:center;justify-content:center;touch-action:none;}
+  .viewer.on{display:flex;}
+  .viewer .vstage{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:14px 8px calc(56px + env(safe-area-inset-bottom));}
+  .viewer img{max-width:100%;max-height:100%;object-fit:contain;transition:transform .18s ease-out;}
+  .viewer .vclose{position:absolute;top:calc(14px + env(safe-area-inset-top));right:14px;width:38px;height:38px;border-radius:50%;background:#fff2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;}
+  .viewer .vcnt{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:#fff;font-weight:800;font-size:13px;letter-spacing:1px;}
+  .viewer .vdot{position:absolute;bottom:calc(40px + env(safe-area-inset-bottom));left:0;right:0;display:flex;gap:6px;justify-content:center;}
+  .viewer .vdot i{width:6px;height:6px;border-radius:50%;background:#fff5;}
+  .viewer .vdot i.on{background:#fff;}
+
   .inputbar{display:flex;gap:7px;padding:8px 10px;border-top:4px solid var(--ink);background:#fff;align-items:flex-end;flex-shrink:0;}
   .ibtn{width:38px;height:38px;border:3px solid var(--ink);border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
   .field{flex:1;background:var(--soft);border:3px solid var(--ink);border-radius:16px;padding:9px 12px;font-size:13.5px;color:#aaa;font-weight:600;min-width:0;}
@@ -295,7 +328,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.11:10</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.11:27</div>
         </div>
       </div>
     </section>
@@ -366,10 +399,11 @@
         <div class="msgs" id="msgs"></div>
       </div>
       <div class="inputbar">
-        <div class="ibtn">🎤</div>
-        <textarea class="field" id="msgInput" rows="1" maxlength="500" placeholder="说点什么…"></textarea>
+        <div class="ibtn" id="btnPickImg" role="button" aria-label="发送图片">🖼</div>
+        <textarea class="field" id="msgInput" rows="1" maxlength="2000" placeholder="说点什么…"></textarea>
         <div class="ibtn">😀</div>
         <button class="send" id="sendBtn" type="button" disabled>发送</button>
+        <input type="file" id="filePick" accept="image/*" multiple style="display:none">
       </div>
     </section>
 
@@ -534,7 +568,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.11:10</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.11:27</div>
       </div>
     </section>
 
@@ -551,6 +585,14 @@
   <!-- 长按菜单 -->
   <div class="mask" id="mask"></div>
   <div class="sheet" id="sheet"></div>
+
+  <!-- 全屏看图（P2） -->
+  <div class="viewer" id="viewer">
+    <div class="vstage" id="vStage"><img id="vImg" alt=""></div>
+    <div class="vclose" id="vClose">✕</div>
+    <div class="vdot" id="vDot"></div>
+    <div class="vcnt" id="vCnt"></div>
+  </div>
 </div>
 
 <script>
@@ -1162,6 +1204,7 @@
           if(m.id > S.lastId) S.lastId = m.id;
           if(m.created_at) S.lastAt = m.created_at;
         }
+        if(m.msg_type === 'image') swapPicSrc(ex, m.content);
         return ex;
       }
     }
@@ -1183,12 +1226,26 @@
     if(m.id) wrap.dataset.id = m.id;
     if(m.client_msg_id) wrap.dataset.client = m.client_msg_id;
 
-    var bub = el('div', 'bubble', m.content);
+    var pics = (m.msg_type === 'image') ? parsePics(m.content) : null;
+    var bub;
+    if(pics && pics.length){
+      bub = el('div', 'bubble imgonly');
+      bub.appendChild(buildPics(pics));
+    } else if(m.msg_type === 'image'){
+      /* 图片消息但 URL 解析不出来（极端情况：本地预览没生成成功）→ 别把 JSON 糊到脸上 */
+      bub = el('div', 'bubble', '[图片]');
+    } else {
+      bub = el('div', 'bubble', m.content);
+    }
     var av = avaImg(mine ? S.me.avatar : ((S.cur && S.cur.peer_avatar) || 'ava_cat'));
     av.className = 'a';
 
-    if(mine){ wrap.appendChild(bub); wrap.appendChild(av); }
-    else { wrap.appendChild(av); wrap.appendChild(bub); }
+    /* DOM 顺序统一「头像 → 气泡」，自己的消息靠 .msg.out 的 row-reverse 反转，
+       视觉上才是「气泡在左、头像最右」（同微信）。
+       原来 out 分支写成 [气泡, 头像]，被 row-reverse 又反了一次，头像反而跑到左边、
+       气泡直接贴屏边——文字消息不明显，图片消息一看就是别人发的。 */
+    wrap.appendChild(av);
+    wrap.appendChild(bub);
 
     msgsBox.appendChild(wrap);
     fillImgIn(wrap);
@@ -1252,6 +1309,7 @@
           if(m.id){ reuse.dataset.id = m.id; S.ids[m.id] = 1; if(m.id > S.lastId) S.lastId = m.id; }
           reuse.classList.remove('pending');
           reuse.classList.remove('failed');
+          if(m.msg_type === 'image') swapPicSrc(reuse, m.content);
           msgsBox.appendChild(reuse);
           added++;
           return;
@@ -1278,17 +1336,264 @@
   }
 
   /* ---------------- 发送（幂等 + 超时 + 重发）---------------- */
-  function postMessage(cid, text, clientId){
+  function postMessage(cid, text, clientId, type){
     return api('/rest/v1/rpc/send_message', {
       method: 'POST',
       timeout: 15000,
-      body: { p_conv: cid, p_content: text, p_client_id: clientId, p_type: 'text' }
+      body: { p_conv: cid, p_content: text, p_client_id: clientId, p_type: type || 'text' }
     }).then(function(res){
       var row = (res && res[0]) || null;
       if(!row) throw new Error('发送失败，请重试');
       return row;
     });
   }
+
+  /* ---------------- 图片消息（P2 / FR-303）----------------
+     链路：选图 → canvas 压缩（长边 1600，质量 0.82，超 500KB 二次降质）
+          → 传到 Storage 公开桶 chat-media → 拿公网 URL → send_message(type=image)
+     content 存 JSON 数组（一条消息含多张图，与微信「一次发 9 张 = 一条消息」一致）。
+     乐观渲染先用 blob: URL 顶上，避免先空白再闪现。 */
+  var PIC_MAX = 9, PIC_SIDE = 1600, PIC_Q = 0.82, PIC_LIMIT = 500 * 1024;
+
+  function parsePics(c){
+    if(!c) return null;
+    var s = String(c).trim();
+    if(s.charAt(0) === '['){
+      try{ var a = JSON.parse(s); if(a && a.length) return a; }catch(e){}
+    }
+    if(/^https?:\/\//.test(s)) return [s];
+    return null;
+  }
+
+  /* 压缩；环境不支持 canvas（如 jsdom 测试）时原样返回，让上层照常走通 */
+  function compressPic(file){
+    return new Promise(function(res){
+      var cv, ctx;
+      try{
+        cv = document.createElement('canvas');
+        ctx = cv && cv.getContext && cv.getContext('2d');
+      }catch(e){ ctx = null; }
+      if(!ctx){ res(file); return; }
+      var objUrl = URL.createObjectURL(file);
+      var im = new Image();
+      im.onload = function(){
+        try{
+          var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+          var s = Math.min(1, PIC_SIDE / Math.max(w, h));
+          cv.width = Math.max(1, Math.round(w * s));
+          cv.height = Math.max(1, Math.round(h * s));
+          ctx.drawImage(im, 0, 0, cv.width, cv.height);
+          URL.revokeObjectURL(objUrl);
+          cv.toBlob(function(b){
+            if(!b){ res(file); return; }
+            if(b.size > PIC_LIMIT){
+              cv.toBlob(function(b2){ res(b2 || b); }, 'image/jpeg', 0.6);
+            } else res(b);
+          }, 'image/jpeg', PIC_Q);
+        }catch(e){ URL.revokeObjectURL(objUrl); res(file); }
+      };
+      im.onerror = function(){ URL.revokeObjectURL(objUrl); res(file); };
+      im.src = objUrl;
+    });
+  }
+
+  function uploadPic(cid, blob){
+    var path = cid + '/' + uuid() + '.jpg';
+    return ensureToken().then(function(tok){
+      return fetch(SUPA.url + '/storage/v1/object/chat-media/' + path, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPA.key,
+          'Authorization': 'Bearer ' + tok,
+          'Content-Type': 'image/jpeg',
+          'cache-control': 'max-age=31536000'
+        },
+        body: blob
+      }).then(function(r){
+        if(r.ok) return SUPA.url + '/storage/v1/object/public/chat-media/' + path;
+        return r.text().then(function(t){
+          var e = new Error('图片上传失败（' + r.status + '）');
+          e.status = r.status; e.data = t;
+          throw e;
+        });
+      });
+    });
+  }
+
+  function buildPics(urls){
+    urls = urls || [];
+    if(urls.length === 1){
+      var one = document.createElement('img');
+      one.className = 'pic';
+      one.src = urls[0];
+      one.alt = '图片';
+      one.addEventListener('click', function(){ openViewer(urls, 0); });
+      return one;
+    }
+    var g = el('div', 'pics ' + (urls.length <= 4 ? 'c2' : 'c3'));
+    urls.forEach(function(u, i){
+      var im = document.createElement('img');
+      im.className = 'pic';
+      im.src = u;
+      im.alt = '图片';
+      im.addEventListener('click', function(e){ e.stopPropagation(); openViewer(urls, i); });
+      g.appendChild(im);
+    });
+    return g;
+  }
+
+  /* 上传成功后把气泡里的 blob: 预览换成远端地址。
+     不换的话：blob URL 只在本次页面生命周期内有效，重开 App / 从缓存重建时会变空图。 */
+  function swapPicSrc(node, content){
+    var urls = parsePics(content);
+    if(!urls || !urls.length || !node) return;
+    var bub = node.querySelector('.bubble.imgonly');
+    if(!bub) return;
+    bub.innerHTML = '';
+    bub.appendChild(buildPics(urls));
+  }
+
+  function sendPics(files){
+    if(!S.cur || !files || !files.length) return;
+    var list = Array.prototype.slice.call(files, 0, PIC_MAX);
+    var cid = S.cur.id, key = uuid();
+    var localUrls = list.map(function(f){
+      try{ return URL.createObjectURL(f); }catch(e){ return ''; }
+    }).filter(Boolean);
+    var node = addMsg({
+      sender_id: S.me.id, msg_type: 'image',
+      content: JSON.stringify(localUrls),
+      created_at: new Date().toISOString(), client_msg_id: key
+    }, true, true);
+    if(!node) return;
+    S.pending[key] = { type: 'image', cid: cid, files: list, urls: [], localUrls: localUrls };
+    scrollBottom();
+    deliverPics(key, node, cid, 0);
+  }
+
+  /* 压缩只做一次（重试不重复压），已上传成功的图直接复用 URL */
+  function preparePics(p){
+    if(p.blobs) return Promise.resolve(p.blobs);
+    return Promise.all(p.files.map(compressPic)).then(function(bs){ p.blobs = bs; return bs; });
+  }
+
+  function uploadAllPics(p){
+    return preparePics(p).then(function(bs){
+      var i = p.urls.length;
+      function step(){
+        if(i >= bs.length) return Promise.resolve(p.urls);
+        return uploadPic(p.cid, bs[i]).then(function(u){
+          p.urls.push(u); i++; return step();
+        });
+      }
+      return step();
+    });
+  }
+
+  function deliverPics(key, node, cid, attempt){
+    attempt = attempt || 0;
+    var p = S.pending[key];
+    if(!p) return Promise.resolve();
+    return uploadAllPics(p).then(function(urls){
+      return postMessage(cid, JSON.stringify(urls), key, 'image');
+    }).then(function(row){
+      if(msgsBox && !msgsBox.contains(node)) msgsBox.appendChild(node);
+      node.classList.remove('pending');
+      node.classList.remove('failed');
+      node.dataset.id = row.id;
+      S.ids[row.id] = 1;
+      if(row.id > S.lastId) S.lastId = row.id;
+      if(row.created_at) S.lastAt = row.created_at;
+      swapPicSrc(node, row.content);
+      delete S.pending[key];
+      bumpConv(cid, row);
+      cachePut(cid, row);
+      scrollBottom();
+    }).catch(function(e){
+      var retriable = !e || !e.status || e.status >= 500 || /上传失败/.test(e.message || '');
+      if(retriable && attempt < 2){
+        if(S.pending[key]) S.pending[key].attempt = attempt + 1;
+        return new Promise(function(res){
+          setTimeout(res, attempt === 0 ? 800 : 2000);
+        }).then(function(){
+          return deliverPics(key, node, cid, attempt + 1);
+        });
+      }
+      if(msgsBox && !msgsBox.contains(node)) msgsBox.appendChild(node);
+      node.classList.remove('pending');
+      node.classList.add('failed');
+      if(S.pending[key]) S.pending[key].failed = true;
+      toast(friendly(e && e.message));
+    });
+  }
+
+  /* ---------------- 全屏看图 ---------------- */
+  var V = { urls: [], idx: 0 };
+
+  function paintViewer(){
+    var img = $('#vImg'), cnt = $('#vCnt'), dot = $('#vDot');
+    if(!img) return;
+    img.src = V.urls[V.idx] || '';
+    img.style.transform = '';
+    if(cnt) cnt.textContent = V.urls.length > 1 ? (V.idx + 1) + ' / ' + V.urls.length : '';
+    if(dot){
+      dot.innerHTML = '';
+      if(V.urls.length > 1){
+        V.urls.forEach(function(_, k){
+          var d = document.createElement('i');
+          if(k === V.idx) d.className = 'on';
+          dot.appendChild(d);
+        });
+      }
+    }
+  }
+
+  function openViewer(urls, i){
+    V.urls = urls || []; V.idx = i || 0;
+    var v = $('#viewer');
+    if(!v) return;
+    v.classList.add('on');
+    paintViewer();
+  }
+
+  function closeViewer(){
+    var v = $('#viewer');
+    if(v) v.classList.remove('on');
+    var img = $('#vImg');
+    if(img){ img.src = ''; img.style.transform = ''; }
+  }
+
+  function viewerStep(d){
+    if(V.urls.length < 2) return;
+    V.idx = (V.idx + d + V.urls.length) % V.urls.length;
+    paintViewer();
+  }
+
+  function bindViewer(){
+    var v = $('#viewer');
+    if(!v) return;
+    $('#vClose').addEventListener('click', closeViewer);
+    v.addEventListener('click', function(e){ if(e.target === v) closeViewer(); });
+    /* 左右滑切换 + 双击缩放 */
+    var sx = 0, sy = 0, moved = false, zoom = 1;
+    var stage = $('#vStage'), img = $('#vImg');
+    stage.addEventListener('touchstart', function(e){
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; moved = false;
+    }, { passive: true });
+    stage.addEventListener('touchmove', function(e){
+      if(Math.abs(e.touches[0].clientX - sx) > 12) moved = true;
+    }, { passive: true });
+    stage.addEventListener('touchend', function(e){
+      var dx = (e.changedTouches[0].clientX - sx);
+      var dy = (e.changedTouches[0].clientY - sy);
+      if(moved && Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) viewerStep(dx < 0 ? 1 : -1);
+    });
+    img.addEventListener('dblclick', function(){
+      zoom = zoom === 1 ? 2 : 1;
+      img.style.transform = 'scale(' + zoom + ')';
+    });
+  }
+
 
   function sendText(text){
     if(!S.cur) return;
@@ -1348,6 +1653,10 @@
     var p = S.pending[key];
     wrap.classList.remove('failed');
     wrap.classList.add('pending');
+    if(p.type === 'image'){
+      deliverPics(key, wrap, p.cid || (S.cur && S.cur.id), 0);
+      return;
+    }
     deliver(key, wrap, p.text, p.cid || (S.cur && S.cur.id)).then(function(){
       if(wrap.classList.contains('failed')) toast('还是没发出去，检查下网络');
     });
@@ -1435,14 +1744,19 @@
   }
 
   function msgMenu(wrap, m){
+    var isPic = (m.msg_type === 'image');
+    var pics = isPic ? parsePics(m.content) : null;
     if(wrap.classList.contains('failed')){
-      openSheet([
-        { label: '重新发送', fn: function(){ retryMsg(wrap); } },
-        { label: '复制', fn: function(){ copyText(m.content); } }
-      ]);
+      var items = [{ label: '重新发送', fn: function(){ retryMsg(wrap); } }];
+      if(!isPic) items.push({ label: '复制', fn: function(){ copyText(m.content); } });
+      openSheet(items);
       return;
     }
     if(wrap.classList.contains('pending')){ toast('还在发送中…'); return; }
+    if(isPic && pics){
+      openSheet([{ label: '看大图', fn: function(){ openViewer(pics, 0); } }]);
+      return;
+    }
     openSheet([{ label: '复制', fn: function(){ copyText(m.content); } }]);
   }
 
@@ -1840,6 +2154,24 @@
     sendBtn.addEventListener('click', doSend);
   }
 
+  /* ---------------- 选图发图（P2）---------------- */
+  var pickBtn = $('#btnPickImg'), filePick = $('#filePick');
+  if(pickBtn && filePick){
+    pickBtn.addEventListener('click', function(){
+      if(!S.cur){ toast('先选一个聊天'); return; }
+      filePick.click();
+    });
+    filePick.addEventListener('change', function(e){
+      var fs = e.target.files;
+      var picked = fs ? Array.prototype.slice.call(fs) : [];
+      e.target.value = '';                 /* 清空，才能连选同一张图 */
+      if(!picked.length) return;
+      if(picked.length > PIC_MAX) toast('一次最多发 9 张，已取前 9 张');
+      sendPics(picked);
+    });
+  }
+  bindViewer();
+
   /* ---------------- 登录界面 ---------------- */
   function resetLogin(){
     var m = $('#iMail'), p = $('#iPass');
@@ -2163,7 +2495,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.11:10';
+    var BUILD='1029.11:27';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
