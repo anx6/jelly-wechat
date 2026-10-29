@@ -512,8 +512,10 @@
   .qrname{font-family:'ZCOOL KuaiLe';font-size:19px;color:var(--ink);}
   .qrsub{font-size:11.5px;font-weight:800;color:var(--dim);margin-top:4px;letter-spacing:.5px;}
   /* 二维码永远是白底黑点，深色模式下也不跟着改 —— 反色就扫不出来了。
-     这是整套配色里唯一刻意写死颜色的地方。 */
-  .qrbox{width:200px;height:200px;margin:15px auto 11px;padding:9px;background:#fff;
+     这是整套配色里唯一刻意写死颜色的地方。
+     留白交给 SVG 自带的 4 模块静区，所以这里不再加 padding，
+     否则双重留白会把码本体挤小、反而更难扫。 */
+  .qrbox{width:216px;height:216px;margin:15px auto 11px;padding:0;overflow:hidden;background:#fff;
     border:3px solid var(--ink);border-radius:16px;}
   .qrbox svg{width:100%;height:100%;display:block;}
   .qrtip{font-size:11.5px;font-weight:700;color:var(--dim);line-height:1.6;}
@@ -710,7 +712,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1029.20:05';
+window.__BUILD = '1029.20:09';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -748,7 +750,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.20:05</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.20:09</div>
         </div>
       </div>
     </section>
@@ -1182,7 +1184,7 @@ try{
           <div class="cell" id="setDiscover"><div class="chip" style="background:var(--purple)">🧭</div><div class="nm">发现页管理</div><div class="chev">›</div></div>
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.20:05</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.20:09</div>
       </div>
     </section>
 
@@ -1312,7 +1314,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.20:05</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.20:09</div>
       </div>
     </section>
 
@@ -3349,20 +3351,22 @@ try{
 
   /* 矩阵 → SVG 字符串。逐行把连续黑点合并成一个 rect：
      版本 4 是 33x33 = 1089 个模块，一格一个 <rect> 会产生上千个节点，
-     合并后通常只剩一两百个，渲染快很多。 */
+     合并后通常只剩一两百个，渲染快很多。
+     四周留 4 模块静区（QR 规范），不留的话存成 PNG 放到深色背景上就扫不出来。 */
   function qrSvgXml(mat){
     if(!mat) return '';
-    var s = mat.size, out = [];
-    out.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + s + ' ' + s +
+    var s = mat.size, pad = 4, t = s + pad * 2, out = [];
+    out.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + t + ' ' + t +
              '" shape-rendering="crispEdges">');
-    out.push('<rect width="' + s + '" height="' + s + '" fill="#fff"/>');
+    out.push('<rect width="' + t + '" height="' + t + '" fill="#fff"/>');
     for(var r = 0; r < s; r++){
       var c = 0;
       while(c < s){
         if(!mat.cells[r][c]){ c++; continue; }
         var st = c;
         while(c < s && mat.cells[r][c]) c++;
-        out.push('<rect x="' + st + '" y="' + r + '" width="' + (c - st) + '" height="1" fill="#000"/>');
+        out.push('<rect x="' + (st + pad) + '" y="' + (r + pad) +
+                 '" width="' + (c - st) + '" height="1" fill="#000"/>');
       }
     }
     out.push('</svg>');
@@ -5293,9 +5297,11 @@ try{
       avaKey = g.gavatar || '👥';
       sub = key ? ('群邀请码 ' + key) : '';
       tip = '扫一扫上面的二维码，进群聊天';
+      /* 每行都控制在 24 个汉字以内：.hint 是 pre-line，超过一行宽会被
+         自动折成半行，看起来像排版错乱。也别把 PRD 编号写给用户看。 */
       hintTxt = '群二维码只包含邀请码，不含成员和聊天内容。\n' +
-        '对方扫码后仍需要你自己确认才进群 —— 这一层还没做（FR-409 后半段），\n' +
-        '所以当前扫码只会提示邀请码，不会自动进群。';
+        '对方扫到后要管理员确认才能进群，\n' +
+        '当前扫到只提示邀请码，还不会自动入群。';
     }else{
       name = (S.me && S.me.nickname) || '我的萌将';
       key = (S.me && S.me.jelly_id) || '';
@@ -5303,8 +5309,8 @@ try{
       sub = key ? ('果冻号 ' + key) : '还没有果冻号';
       tip = '扫一扫上面的二维码，加我为朋友';
       hintTxt = '二维码里只有你的果冻号。\n' +
-        '对方扫到后是在「添加朋友」里用果冻号搜你，不会直接成为好友 ——\n' +
-        '还得你通过对方的申请。';
+        '对方扫到后会在「添加朋友」里搜你，\n' +
+        '成为好友还需要你本人通过。';
     }
 
     if(title) title.textContent = isGroup ? '群二维码' : '我的二维码';
@@ -5346,7 +5352,8 @@ try{
 
   /* 把矩阵画到 canvas 再导出 PNG。选 canvas 而不是 SVG 导出：
      SVG → Image → canvas 要等 onload，且部分浏览器对 data:image/svg+xml
-     里的 foreignObject/尺寸处理不一致，直接画格子最稳。 */
+     里的 foreignObject/尺寸处理不一致，直接画格子最稳。
+     同样留 4 模块静区 —— 导出的图片是要给别人扫的，四周不能贴着黑点。 */
   function qrCanvas(mat, px){
     var c = document.createElement('canvas');
     c.width = px; c.height = px;
@@ -5355,10 +5362,12 @@ try{
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, px, px);
     ctx.fillStyle = '#000000';
-    var s = mat.size, cell = px / s;
+    var s = mat.size, pad = 4, total = s + pad * 2, cell = px / total;
     for(var r = 0; r < s; r++){
       for(var cc = 0; cc < s; cc++){
-        if(mat.cells[r][cc]) ctx.fillRect(Math.floor(cc * cell), Math.floor(r * cell), Math.ceil(cell), Math.ceil(cell));
+        if(!mat.cells[r][cc]) continue;
+        ctx.fillRect(Math.floor((cc + pad) * cell), Math.floor((r + pad) * cell),
+                     Math.ceil(cell), Math.ceil(cell));
       }
     }
     return c;
@@ -7678,7 +7687,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.20:05';
+    var BUILD='1029.20:09';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
