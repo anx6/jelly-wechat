@@ -293,7 +293,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.10:09</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.10:26</div>
         </div>
       </div>
     </section>
@@ -532,7 +532,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.10:09</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.10:26</div>
       </div>
     </section>
 
@@ -582,6 +582,8 @@
     lastShownAt: 0,       /* 已渲染的最后一条消息时间（用于插入时间分割条） */
     ids: {},              /* 已渲染的消息 id */
     pending: {},          /* client_msg_id -> { text, cid } 发送中的消息 */
+    msgCache: {},         /* 会话id -> { rows, lastId, seen, used } 已确认消息的内存缓存
+                             目的：从列表点进会话时立刻用缓存渲染，不必等网络往返 */
     filter: '',
     screen: 'login',
     listT: 0, chatT: 0, reqT: 0,
@@ -1074,6 +1076,55 @@
   /* ---------------- 消息渲染 ---------------- */
   var msgsBox = $('#msgs');
 
+  /* ---- 会话消息缓存（让「从列表点进会话」秒开）----
+     只存「服务端已确认」的消息。再次进入同一会话时先用它同步渲染出内容，
+     再在后台按 id=gt 增量补拉；这样既没有「加载中…」的空白等待，也不用每次拉 80 条。 */
+  var CACHE_CONVS = 8;     /* 最多缓存几个会话（按使用时间淘汰） */
+  var CACHE_ROWS  = 200;   /* 每个会话最多缓存多少条 */
+
+  function cacheOf(cid){
+    var c = S.msgCache[cid];
+    if(!c){
+      c = S.msgCache[cid] = { rows: [], lastId: 0, seen: {}, used: 0 };
+      /* 新建后立刻裁剪，保证缓存会话数不超过上限（按最后使用时间淘汰最旧的） */
+      var ks = Object.keys(S.msgCache);
+      if(ks.length > CACHE_CONVS){
+        ks.filter(function(k){ return k !== cid; })
+          .sort(function(a, b){ return (S.msgCache[a].used || 0) - (S.msgCache[b].used || 0); })
+          .slice(0, ks.length - CACHE_CONVS)
+          .forEach(function(k){ delete S.msgCache[k]; });
+      }
+    }
+    return c;
+  }
+
+  function cachePut(cid, row){
+    if(!cid || !row) return;
+    var c = cacheOf(cid);
+    if(row.id){
+      if(c.seen[row.id]) return;
+      c.seen[row.id] = 1;
+      if(row.id > c.lastId) c.lastId = row.id;
+    }
+    c.rows.push(row);
+    if(c.rows.length > CACHE_ROWS){
+      c.rows.splice(0, c.rows.length - CACHE_ROWS).forEach(function(r){ if(r.id) delete c.seen[r.id]; });
+    }
+  }
+
+  /* 用缓存同步渲染（不碰网络，无「加载中」） */
+  function renderCached(cache){
+    msgsBox.innerHTML = '';
+    S.lastId = 0; S.ids = {}; S.lastShownAt = 0;
+    cache.rows.forEach(function(m){ addMsg(m, false, false); });
+    if(!cache.rows.length){
+      msgsBox.appendChild(el('div', 'time', '还没有消息，说句话打破沉默吧 ✧'));
+    }
+    S.lastId = cache.lastId || 0;
+    S.lastAt = cache.rows.length ? cache.rows[cache.rows.length - 1].created_at : null;
+    if(window.__fillImg) window.__fillImg();
+  }
+
   function addMsg(m, animate, pending){
     var mine = (m.sender_id === S.sess.user.id);
 
@@ -1166,6 +1217,11 @@
         }
       }
       var added = 0;
+      /* 写入会话缓存（只存服务端已确认的消息，供下次进会话秒开） */
+      if(S.cur && S.cur.id){
+        rows.forEach(function(m){ cachePut(S.cur.id, m); });
+        cacheOf(S.cur.id).used = Date.now();
+      }
       rows.forEach(function(m){
         /* 服务端已回包、本地仍挂着「发送中」节点 → 复用该节点就地升级 */
         if(initial && m.client_msg_id && keptMap[m.client_msg_id]){
@@ -1238,6 +1294,8 @@
       var p = S.pending[key];
       delete S.pending[key];
       bumpConv(cid, row);
+      /* 自己发的消息同样进缓存，否则切走再切回来会少一条 */
+      cachePut(cid, row);
       scrollBottom();
       return p;
     }).catch(function(e){
@@ -1410,13 +1468,28 @@
     S.cur = c;
     S.lastId = 0; S.ids = {}; S.lastAt = null; S.lastShownAt = 0;
     $('#chatTitle').textContent = convName(c);
-    msgsBox.innerHTML = '<div class="time">加载中…</div>';
+    /* 命中内存缓存 → 同步渲染出来，用户立刻看到内容，不经过「加载中…」 */
+    var cache = c && S.msgCache[c.id];
+    var hit = !!(cache && cache.rows.length);
+    if(hit){ cache.used = Date.now(); renderCached(cache); }
+    else{ msgsBox.innerHTML = '<div class="time">加载中…</div>'; }
     returnTo = 'chat';
     backTo = null;
     $('#tabbar').style.display = 'none';
     goScreen('chatdetail');
     stopListPoll(); stopChatPoll();
     bannerUpdate();
+    if(hit){
+      scrollBottom();
+      startChatPoll();
+      renderConvs();
+      markRead();
+      /* 后台静默补拉：只取比缓存新的消息，不清屏、不闪，失败也不打扰用户 */
+      return fetchMessages(false).then(function(rows){
+        if(rows && rows.length){ scrollBottom(); markRead(); }
+        return rows;
+      }).catch(function(){ return []; });
+    }
     return fetchMessages(true).then(function(){
       markRead();
       startChatPoll();
@@ -1875,7 +1948,7 @@
   function doLogout(){
     stopChatPoll(); stopListPoll();
     saveSess(null);
-    S.convs = []; S.cur = null; S.friends = []; S.reqs = []; S.pending = {};
+    S.convs = []; S.cur = null; S.friends = []; S.reqs = []; S.pending = {}; S.msgCache = {};
     var list = $('#roomList'); if(list) list.innerHTML = '';
     var fl = $('#friendList'); if(fl) fl.innerHTML = '';
     var rl = $('#reqList'); if(rl) rl.innerHTML = '';
@@ -2059,7 +2132,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.10:09';
+    var BUILD='1029.10:26';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
