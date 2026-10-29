@@ -293,7 +293,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.10:26</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.10:55</div>
         </div>
       </div>
     </section>
@@ -532,7 +532,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.10:26</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.10:55</div>
       </div>
     </section>
 
@@ -584,6 +584,8 @@
     pending: {},          /* client_msg_id -> { text, cid } 发送中的消息 */
     msgCache: {},         /* 会话id -> { rows, lastId, seen, used } 已确认消息的内存缓存
                              目的：从列表点进会话时立刻用缓存渲染，不必等网络往返 */
+    readMark: {},         /* 会话id -> 本地已读时间戳。返回列表时不等服务端写回，
+                             用它在这个短窗口内压住服务端返回的旧 unread，避免角标回闪 */
     filter: '',
     screen: 'login',
     listT: 0, chatT: 0, reqT: 0,
@@ -613,6 +615,22 @@
     i.setAttribute('data-k', pickKey(k));
     i.alt = '';
     return i;
+  }
+
+  /* 只填充「刚插入的这个节点」里的头像，而不是整篇文档。
+     原来每条消息都调用 window.__fillImg()，它是 document.querySelectorAll('[data-k]') 全量扫描；
+     会话进得多（缓存可达 200 条）时就变成 200 次全扫（O(n²)），进会话瞬间主线程被占住。
+     iOS 上滚动由合成线程负责、点击必须等主线程，所以表现就是「能上下滑，但点哪儿都没反应」。 */
+  function fillImgIn(node){
+    if(!node || !node.querySelectorAll) return;
+    var imgs = window.IMG || {};
+    var els = node.querySelectorAll('[data-k]');
+    for(var i = 0; i < els.length; i++){
+      var e = els[i];
+      if(e.getAttribute('src')) continue;
+      var u = imgs[e.getAttribute('data-k')];
+      if(u) e.setAttribute('src', u);
+    }
   }
   function pickKey(k){
     var imgs = window.IMG || {};
@@ -784,7 +802,9 @@
           id: c.id, ctype: c.ctype, title: c.title, code: c.room_code,
           peer_id: c.peer_id, peer_nick: c.peer_nick, peer_avatar: c.peer_avatar,
           last: c.last_content ? { content: c.last_content, type: c.last_type, sender_id: c.last_sender, created_at: c.last_at } : null,
-          unread: Number(c.unread || 0),
+          /* 本地刚标记过已读的会话，在这个短窗口内忽略服务端可能还没更新的 unread，
+             避免「返回列表后角标又冒出来再消失」的闪烁 */
+          unread: (S.readMark[c.id] && (Date.now() - S.readMark[c.id]) < 15000) ? 0 : Number(c.unread || 0),
           pinned_at: c.pinned_at, mute: !!c.mute,
           members: Number(c.member_count || 0), draft: c.draft || ''
         };
@@ -1169,7 +1189,7 @@
     else { wrap.appendChild(av); wrap.appendChild(bub); }
 
     msgsBox.appendChild(wrap);
-    if(window.__fillImg) window.__fillImg();
+    fillImgIn(wrap);
 
     if(animate){
       wrap.addEventListener('animationend', function(){ wrap.classList.remove('new'); }, { once: true });
@@ -1355,6 +1375,9 @@
     /* 本地先清，保证立刻不显示角标；再把 last_read_at 写回服务端 */
     S.cur.unread = 0;
     S.convs.forEach(function(c){ if(c.id === cid) c.unread = 0; });
+    /* 记下「这个会话本地已读」的时间窗口：返回列表时不再等服务端写回，
+       但紧接着的 loadConvs 会带回还没更新的 unread，用这个标记压住，避免角标回闪 */
+    S.readMark[cid] = Date.now();
     updateTabDot();
     /* 关键：已读位点必须用「最后一条消息的服务器时间」，不能用手机本地时钟。
        本地时钟比服务器慢几秒时，用 new Date() 会让最后一条消息永远算未读。 */
@@ -1471,12 +1494,15 @@
     /* 命中内存缓存 → 同步渲染出来，用户立刻看到内容，不经过「加载中…」 */
     var cache = c && S.msgCache[c.id];
     var hit = !!(cache && cache.rows.length);
-    if(hit){ cache.used = Date.now(); renderCached(cache); }
-    else{ msgsBox.innerHTML = '<div class="time">加载中…</div>'; }
+    if(!hit) msgsBox.innerHTML = '<div class="time">加载中…</div>';
     returnTo = 'chat';
     backTo = null;
     $('#tabbar').style.display = 'none';
+    /* 先切屏、再渲染。渲染一个多消息会话要重建上百个节点，如果排在切屏前面，
+       用户会在这段时间里对着上一屏点按钮（感觉「点了没反应」）。
+       切屏是必须立即反馈的动作，所以放到最前面。 */
     goScreen('chatdetail');
+    if(hit){ cache.used = Date.now(); renderCached(cache); }
     stopListPoll(); stopChatPoll();
     bannerUpdate();
     if(hit){
@@ -1729,19 +1755,22 @@
 
   function back(){
     stopChatPoll();
-    /* 等「已读」写完再刷列表，否则会出现「读了但角标还在」的竞态 */
     var wasChat = (S.screen === 'chatdetail');
-    var p = (wasChat && S.cur) ? markRead() : Promise.resolve();
-    p.then(function(){
-      if(wasChat){
-        setTab(returnTo || 'chat');
-      }else if(backTo){
-        var b = backTo; backTo = null;
-        setTab(b);
-      }else{
-        setTab(curTab || 'chat');
-      }
-    });
+    /* 关键：返回是纯本地动作，绝不能被网络拖住。
+       以前这里 `markRead().then(切屏)`，一旦那个 PATCH 在弱网 / 请求挂起时不返回，
+       按钮就「点了完全没反应」——iOS 上切网络或 PWA 从后台回来时很容易触发。
+       markRead() 的同步部分（清本地未读 + 更新角标）会立刻执行，服务端写回放后台。 */
+    var p = (wasChat && S.cur) ? markRead() : null;
+    if(wasChat){
+      setTab(returnTo || 'chat');
+    }else if(backTo){
+      var b = backTo; backTo = null;
+      setTab(b);
+    }else{
+      setTab(curTab || 'chat');
+    }
+    /* 服务端写入完成后刷一次列表：那时服务端 unread 已归零，不会把角标刷回来 */
+    if(p) p.then(function(){ if(S.screen === 'chats') renderConvs(); });
   }
 
   /* ---------------- 轮询 ---------------- */
@@ -1948,7 +1977,7 @@
   function doLogout(){
     stopChatPoll(); stopListPoll();
     saveSess(null);
-    S.convs = []; S.cur = null; S.friends = []; S.reqs = []; S.pending = {}; S.msgCache = {};
+    S.convs = []; S.cur = null; S.friends = []; S.reqs = []; S.pending = {}; S.msgCache = {}; S.readMark = {};
     var list = $('#roomList'); if(list) list.innerHTML = '';
     var fl = $('#friendList'); if(fl) fl.innerHTML = '';
     var rl = $('#reqList'); if(rl) rl.innerHTML = '';
@@ -2132,7 +2161,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.10:26';
+    var BUILD='1029.10:55';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
