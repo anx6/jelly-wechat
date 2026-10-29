@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#FBFDFF"/>
+      <stop offset="0.55" stop-color="#EFF7FF"/>
+      <stop offset="1" stop-color="#DDEEFF"/>
+    </linearGradient>
+
+    <linearGradient id="bubbleBig" x1="0.08" y1="0" x2="0.72" y2="1">
+      <stop offset="0" stop-color="#63C6FF"/>
+      <stop offset="0.42" stop-color="#2098F2"/>
+      <stop offset="1" stop-color="#0A62CC"/>
+    </linearGradient>
+
+    <linearGradient id="bubbleSmall" x1="0.1" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#7BD3FF"/>
+      <stop offset="0.45" stop-color="#2EA2F5"/>
+      <stop offset="1" stop-color="#0C6FD6"/>
+    </linearGradient>
+
+    <filter id="drop" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="11" stdDeviation="13" flood-color="#0A4E92" flood-opacity="0.20"/>
+    </filter>
+
+    <filter id="dropSm" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#0A4E92" flood-opacity="0.15"/>
+    </filter>
+
+    <filter id="blush" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+
+    <clipPath id="clipBig">
+      <rect x="88" y="108" width="248" height="248" rx="86" ry="86"/>
+    </clipPath>
+    <clipPath id="clipSmall">
+      <rect x="248" y="248" width="174" height="174" rx="60" ry="60"/>
+    </clipPath>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <g id="art" transform="translate(256,256) scale(0.94) translate(-261,-269)">
+    <!-- ============ 大泡（歪 -8°） ============ -->
+    <g transform="rotate(-8 212 232)" filter="url(#drop)">
+      <rect x="88" y="108" width="248" height="248" rx="86" ry="86"
+            fill="url(#bubbleBig)" stroke="#08549F" stroke-width="9"/>
+
+      <!-- 果冻高光 -->
+      <g clip-path="url(#clipBig)">
+        <ellipse cx="152" cy="146" rx="86" ry="52" fill="#FFFFFF" opacity="0.20"
+                 transform="rotate(-24 152 146)"/>
+        <ellipse cx="126" cy="134" rx="30" ry="15" fill="#FFFFFF" opacity="0.30"
+                 transform="rotate(-24 126 134)"/>
+      </g>
+
+      <!-- 腮红 -->
+      <ellipse cx="146" cy="262" rx="31" ry="17" fill="#FF6FA8" opacity="0.50" filter="url(#blush)" style="mix-blend-mode:screen"/>
+      <ellipse cx="282" cy="266" rx="31" ry="17" fill="#FF6FA8" opacity="0.50" filter="url(#blush)" style="mix-blend-mode:screen"/>
+
+      <!-- 眼睛（左大右略小，更萌） -->
+      <ellipse cx="167" cy="203" rx="28" ry="32" fill="#FFFFFF"/>
+      <ellipse cx="259" cy="206" rx="27" ry="31" fill="#FFFFFF"/>
+      <circle cx="167" cy="204" r="16" fill="#0B4E92"/>
+      <circle cx="259" cy="207" r="15" fill="#0B4E92"/>
+      <circle cx="161" cy="196" r="6.8" fill="#FFFFFF"/>
+      <circle cx="253" cy="199" r="6.2" fill="#FFFFFF"/>
+      <circle cx="173" cy="212" r="3" fill="#FFFFFF" opacity="0.9"/>
+      <circle cx="265" cy="215" r="2.8" fill="#FFFFFF" opacity="0.9"/>
+
+      <!-- 小嘴 -->
+      <path d="M197 276 Q214 295 232 274" fill="none" stroke="#FFFFFF" stroke-width="8"
+            stroke-linecap="round"/>
+    </g>
+
+    <!-- ============ 小泡（歪 +13°，探头跟班） ============ -->
+    <g transform="rotate(13 335 335)" filter="url(#dropSm)">
+      <rect x="248" y="248" width="174" height="174" rx="60" ry="60"
+            fill="url(#bubbleSmall)" stroke="#08549F" stroke-width="8"/>
+
+      <g clip-path="url(#clipSmall)">
+        <ellipse cx="296" cy="280" rx="58" ry="34" fill="#FFFFFF" opacity="0.22"
+                 transform="rotate(-24 296 280)"/>
+      </g>
+
+      <ellipse cx="300" cy="343" rx="20" ry="11" fill="#FF6FA8" opacity="0.42" filter="url(#blush)" style="mix-blend-mode:screen"/>
+      <ellipse cx="372" cy="345" rx="20" ry="11" fill="#FF6FA8" opacity="0.42" filter="url(#blush)" style="mix-blend-mode:screen"/>
+
+      <!-- 眯眼笑 -->
+      <path d="M293 320 Q307 301 321 320" fill="none" stroke="#FFFFFF" stroke-width="9"
+            stroke-linecap="round"/>
+      <path d="M348 322 Q362 303 376 322" fill="none" stroke="#FFFFFF" stroke-width="9"
+            stroke-linecap="round"/>
+      <!-- 小嘴 -->
+      <path d="M327 346 Q335 357 343 346" fill="none" stroke="#FFFFFF" stroke-width="7"
+            stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>
