@@ -365,6 +365,10 @@
   .fld{background:var(--soft);border:3px solid var(--ink);border-radius:14px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);width:100%;outline:0;-webkit-user-select:text;user-select:text;}
   .fld:focus{background:#fff;box-shadow:0 0 0 3px #8be04e88;}
   .clabel{font-size:11.5px;font-weight:800;color:#8a80a0;letter-spacing:.5px;padding:14px 4px 6px;}
+  /* 果冻号一键复制：小药丸，别做成大按钮抢了「查找」的位置 */
+  .jcopy{display:inline-block;margin-left:6px;padding:2px 9px;border:2px solid var(--ink);border-radius:9px;background:var(--yellow);font-size:10.5px;font-weight:800;color:var(--ink);box-shadow:2px 2px 0 var(--ink);}
+  .jcopy:active{transform:translate(2px,2px);box-shadow:none;}
+  .hit .mid .src{display:inline-block;margin-top:4px;padding:1px 7px;border:2px solid var(--ink);border-radius:8px;background:var(--soft);font-size:10px;font-weight:800;color:#8a80a0;}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}.row,.row.anim{opacity:1;}.sit{opacity:1;}.tab.on .sit{opacity:0;}.tab.on .stand{opacity:1;}}
 </style>
 </head>
@@ -394,7 +398,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.15:09</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.15:42</div>
         </div>
       </div>
     </section>
@@ -596,16 +600,16 @@
       </div>
       <div class="body">
         <div class="fwrap">
-          <div class="fnote">输入对方的注册邮箱精确查找。<br>你的邮箱：<b id="myMailHint">-</b></div>
+          <div class="fnote">果冻号、手机号、邮箱，随便给一样都能找到。<br>你的果冻号：<b id="myJellyHint">-</b><span class="jcopy" id="btnCopyJelly">复制</span></div>
           <div class="lfield" id="fSearch" style="height:48px;">
-            <input id="iSearchMail" type="email" inputmode="email" placeholder="对方的注册邮箱" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <input id="iSearchKey" type="text" inputmode="text" placeholder="果冻号 / 手机号 / 邮箱" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
           </div>
           <div class="btnRow">
             <button class="lbtn" id="btnSearchUser" type="button"><span>查找</span></button>
           </div>
           <div class="lerr" id="aErr"></div>
           <div id="hitBox"></div>
-          <div class="clabel">没有对方的邮箱？</div>
+          <div class="clabel">都记不住？</div>
           <button class="lbtn btnGhost" id="btnGoRoom2" type="button"><span>用 6 位邀请码配对</span></button>
         </div>
       </div>
@@ -701,7 +705,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.15:09</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.15:42</div>
       </div>
     </section>
 
@@ -749,7 +753,10 @@
 
   var S = {
     sess: null,
-    me:      { id:'', nickname:'我的萌将', avatar:'ava_hero', email:'' },
+    me:      { id:'', nickname:'我的萌将', avatar:'ava_hero', email:'', jelly_id:'' },
+    /* 服务端降级开关：数据库还没跑对应迁移时置 true，前端自动退回旧接口/旧字段 */
+    noJelly:  false,      /* profiles 没有 jelly_id 列 */
+    noFindV2: false,      /* 没有 find_user_v2 / send_friend_request_v2 */
     convs:   [],          /* list_conversations 结果 */
     friends: [],          /* list_friends 结果 */
     reqs:    [],          /* incoming_requests 结果 */
@@ -967,17 +974,23 @@
   }
 
   /* ---------------- 数据加载 ---------------- */
-  function loadMe(){
+  function loadMe(retried){
     var uid = S.sess.user.id;
-    return api('/rest/v1/profiles?select=id,nickname,avatar&id=eq.' + uid).then(function(rows){
+    /* 果冻号是 P3 才有的列，服务端没升级前查它会整条 400 —— 退一步只取老三样 */
+    var sel = S.noJelly ? 'id,nickname,avatar' : 'id,nickname,avatar,jelly_id';
+    return api('/rest/v1/profiles?select=' + sel + '&id=eq.' + uid).then(function(rows){
       var p = (rows && rows[0]) || {};
       S.me = {
         id: uid,
         nickname: p.nickname || String(S.sess.user.email || '').split('@')[0] || '我的萌将',
         avatar: p.avatar || 'ava_hero',
-        email: S.sess.user.email || ''
+        email: S.sess.user.email || '',
+        jelly_id: p.jelly_id || ''
       };
       return S.me;
+    }).catch(function(e){
+      if(!retried && e && (e.status === 400 || e.status === 404)){ S.noJelly = true; return loadMe(true); }
+      throw e;
     });
   }
 
@@ -2709,29 +2722,65 @@
   /* ---------------- 加好友 ---------------- */
   function mailOK(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim()); }
 
+  /* 一个输入框通吃三种凭据：邮箱 / 手机号 / 果冻号。
+     判断顺序必须与后端 resolve_user_key 保持一致，
+     否则会出现「本地判不合法、后端其实查得到」的互相打架。 */
+  function keyKind(v){
+    var k = String(v || '').trim();
+    if(!k) return 'empty';
+    if(k.indexOf('@') > 0) return mailOK(k) ? 'mail' : 'bad';
+    if(!/^[0-9]+$/.test(k)) return 'bad';
+    if(k.length === 11 && k.charAt(0) === '1') return 'phone';
+    if(k.length === 7) return 'jelly';
+    return 'bad';
+  }
+
   function searchUser(){
-    var mail = ($('#iSearchMail') || {}).value || '';
-    mail = mail.trim();
-    var err = $('#aErr');
-    if(!mailOK(mail)){ if(err) err.textContent = '邮箱格式好像不对'; return; }
+    var key = (($('#iSearchKey') || {}).value || '').trim();
+    var err = $('#aErr'), box = $('#hitBox');
+    var kind = keyKind(key);
+
+    if(kind === 'empty'){ if(err) err.textContent = '输入果冻号、手机号或邮箱'; return; }
+    if(kind === 'bad'){
+      if(err) err.textContent = /^[0-9]+$/.test(key)
+        ? '果冻号是 7 位数字，手机号是 11 位'
+        : '试试对方的 7 位果冻号、11 位手机号或邮箱';
+      return;
+    }
     if(err) err.textContent = '';
-    var box = $('#hitBox');
     if(box) box.innerHTML = '<div class="fnote">查找中…</div>';
-    api('/rest/v1/rpc/find_user', { method: 'POST', body: { p_email: mail } }).then(function(rows){
-      var u = rows && rows[0];
+
+    findUser(key, kind).then(function(u){
       if(!u){
         if(box) box.innerHTML = '';
-        if(err) err.textContent = '没找到这个邮箱，让对方先注册果冻微信';
+        if(err) err.textContent = kind === 'mail' ? '没找到这个邮箱，让对方先注册果冻微信'
+          : kind === 'phone' ? '没找到这个手机号，让对方先注册果冻微信'
+          : '没找到这个果冻号，核对一下是不是 7 位数字';
         return;
       }
-      renderHit(u, mail);
+      renderHit(u, key);
     }).catch(function(e){
       if(box) box.innerHTML = '';
       if(err) err.textContent = friendly(e.message);
     });
   }
 
-  function renderHit(u, mail){
+  /* 新 RPC 还没部署时自动退回「只认邮箱」的老接口 —— 加好友不能整个挂掉 */
+  function findUser(key, kind){
+    if(!S.noFindV2){
+      return api('/rest/v1/rpc/find_user_v2', { method: 'POST', body: { p_key: key } })
+        .then(function(rows){ return (rows && rows[0]) || null; })
+        .catch(function(e){
+          if(e && (e.status === 400 || e.status === 404)){ S.noFindV2 = true; return findUser(key, kind); }
+          throw e;
+        });
+    }
+    if(kind !== 'mail') return Promise.reject(new Error('服务器还是旧版本，暂时只能用邮箱加好友'));
+    return api('/rest/v1/rpc/find_user', { method: 'POST', body: { p_email: key } })
+      .then(function(rows){ return (rows && rows[0]) || null; });
+  }
+
+  function renderHit(u, key){
     var box = $('#hitBox'); if(!box) return;
     box.innerHTML = '';
     var card = el('div', 'hit');
@@ -2739,10 +2788,21 @@
     var ava = el('div', 'ava'); ava.appendChild(avaImg(u.avatar));
     var mid = el('div', 'mid');
     mid.appendChild(el('div', 'nm', u.nickname || '有人'));
-    mid.appendChild(el('div', 'sub', u.email_masked || maskEmail(mail)));
+
+    /* 副标题按「越不敏感越靠前」排：果冻号 → 脱敏手机号 → 脱敏邮箱。
+       没邮箱的账号也会有果冻号，所以这里不会出现空白。 */
+    var bits = [];
+    if(u.jelly_id) bits.push('果冻号 ' + u.jelly_id);
+    if(u.phone_masked) bits.push(u.phone_masked);
+    if(u.email_masked) bits.push(u.email_masked);
+    mid.appendChild(el('div', 'sub', bits.join(' · ') || maskEmail(key)));
+
+    var src = { phone: '手机号命中', email: '邮箱命中', jelly: '果冻号命中' }[u.hit_by];
+    if(src) mid.appendChild(el('div', 'src', src));
+
     card.appendChild(ava); card.appendChild(mid);
 
-    var label, fn, ghost = false;
+    var label, ghost = false;
     if(u.relation === 'self'){ label = '这是你自己'; ghost = true; }
     else if(u.relation === 'friend'){ label = '发消息'; }
     else if(u.relation === 'pending_out'){ label = '已申请，等通过'; ghost = true; }
@@ -2759,16 +2819,28 @@
         if(c) openConv(c); else openFriend({ user_id: u.id });
         return;
       }
-      sendFriendRequest(mail);
+      sendFriendRequest(key);
     });
     card.appendChild(b);
     box.appendChild(card);
     if(window.__fillImg) window.__fillImg();
   }
 
-  function sendFriendRequest(mail){
-    return api('/rest/v1/rpc/send_friend_request', {
-      method: 'POST', body: { p_email: mail, p_message: null }
+  function sendFriendRequest(key){
+    var useV2 = !S.noFindV2;
+    var p = useV2
+      ? api('/rest/v1/rpc/send_friend_request_v2', { method: 'POST', body: { p_key: key, p_message: null } })
+      : api('/rest/v1/rpc/send_friend_request', { method: 'POST', body: { p_email: key, p_message: null } });
+
+    return p.catch(function(e){
+      /* 服务端还是旧函数：退回 p_email 版本再试一次 */
+      if(useV2 && e && (e.status === 400 || e.status === 404)){
+        S.noFindV2 = true;
+        if(keyKind(key) === 'mail'){
+          return api('/rest/v1/rpc/send_friend_request', { method: 'POST', body: { p_email: key, p_message: null } });
+        }
+      }
+      throw e;
     }).then(function(rows){
       var r = (rows && rows[0]) || {};
       if(r.status === 'pending'){
@@ -2805,15 +2877,27 @@
   function renderMe(){
     if(!S.sess) return;
     var n = $('#meName'); if(n) n.textContent = S.me.nickname || '我的萌将';
-    var m = $('#meMail'); if(m) m.textContent = maskEmail(S.me.email);
+    /* 有的账号压根没有邮箱（手机号注册 / 后台手工建号），这时主标识换成「果冻号」，
+       别给用户看「未设置邮箱」这种自我否定的话 */
+    var m = $('#meMail');
+    if(m) m.textContent = (S.me.jelly_id ? '果冻号 ' + S.me.jelly_id : '果冻号生成中')
+      + (S.me.email ? ' · ' + maskEmail(S.me.email) : '');
     var ava = $('#meAva');
     if(ava){ ava.removeAttribute('src'); ava.setAttribute('data-k', pickKey(S.me.avatar)); }
-    var hint = $('#myMailHint'); if(hint) hint.textContent = S.me.email || '-';
+    renderJellyHint();
     var unread = 0; S.convs.forEach(function(c){ unread += (c.unread || 0); });
     var f1 = $('#stFriends'); if(f1) f1.textContent = S.friends.length;
     var f2 = $('#stRooms'); if(f2) f2.textContent = S.convs.length;
     var f3 = $('#stUnread'); if(f3) f3.textContent = unread;
     if(window.__fillImg) window.__fillImg();
+  }
+
+  /* 添加朋友页顶部那句「你的果冻号：xxxxxxx」*/
+  function renderJellyHint(){
+    var h = $('#myJellyHint');
+    if(h) h.textContent = S.me.jelly_id || '待生成';
+    var b = $('#btnCopyJelly');
+    if(b) b.style.display = S.me.jelly_id ? 'inline-block' : 'none';
   }
 
   function renderAvaPick(){
@@ -2874,6 +2958,8 @@
     stopChatPoll();
     $('#tabbar').style.display = 'none';
     goScreen(name);
+    /* 进「添加朋友」时把果冻号刷一下：那里要展示「你的果冻号」给用户抄 */
+    if(name === 'addfriend') renderJellyHint();
     var b = $('.screen.active .body'); if(b) b.scrollTop = 0;
   }
 
@@ -3332,8 +3418,14 @@
   bind('#meHead', 'click', function(){ openProfile(); });
   bind('#btnSaveProfile', 'click', function(){ saveProfile(); });
   bind('#btnSearchUser', 'click', function(){ searchUser(); });
-  bind('#iSearchMail', 'keydown', function(e){
+  bind('#iSearchKey', 'keydown', function(e){
     if(e.key === 'Enter'){ e.preventDefault(); searchUser(); }
+  });
+  /* 果冻号是给朋友看的，得能一键复制发出去 */
+  bind('#btnCopyJelly', 'click', function(){
+    if(!S.me.jelly_id){ toast('果冻号还没生成，稍后再试'); return; }
+    copyText(S.me.jelly_id);
+    toast('果冻号已复制，发给朋友就能加你 ✧', 2200);
   });
   bind('#iFriendFilter', 'input', function(){ S.filter = this.value; renderFriends(); });
   bind('#mask', 'click', function(){ closeSheet(); });
@@ -3448,7 +3540,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.15:09';
+    var BUILD='1029.15:42';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
