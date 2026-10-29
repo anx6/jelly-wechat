@@ -543,7 +543,8 @@
   html.dark[data-bg="peach"] [data-screen="chatdetail"] .body{background:linear-gradient(160deg,#251b21,#2d2128);}
 
   /* 说明文字 + 原生时间输入（原生控件在手机上体验最好，只把外观压成 .mv 的样子） */
-  .hint{padding:8px 18px 22px;font-size:11.5px;line-height:1.8;color:var(--dim);font-weight:700;}
+  /* pre-line 是必须的：说明文案里用 \n 分段，不加就会连成一大段 */
+  .hint{padding:8px 18px 22px;font-size:11.5px;line-height:1.8;color:var(--dim);font-weight:700;white-space:pre-line;}
   .tin{border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:800;color:var(--dim);text-align:right;padding:0;width:76px;-webkit-appearance:none;appearance:none;}
   .tin::-webkit-calendar-picker-indicator{opacity:.45;}
 
@@ -557,7 +558,7 @@
   .sbar i.b{background:var(--sky);}
   .sbar i.c{background:var(--yellow);}
   .sbar i.d{background:var(--purple);}
-  .sleg{display:flex;flex-wrap:wrap;gap:8px 14px;padding:8px 16px 2px;}
+  .sleg{display:flex;flex-wrap:wrap;gap:8px 16px;padding:8px 16px 2px;}
   .sleg span{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:var(--dim);}
   .sleg span b{width:9px;height:9px;border-radius:3px;border:2px solid var(--ink);flex-shrink:0;display:block;}
 
@@ -566,7 +567,7 @@
   .about .logo{font-size:54px;line-height:1;filter:drop-shadow(2px 3px 0 rgba(26,26,46,.2));}
   .about .an{font-family:'ZCOOL KuaiLe';font-size:21px;margin-top:10px;}
   .about .av{font-size:11.5px;color:var(--dim);font-weight:800;margin-top:6px;letter-spacing:.4px;}
-  .lic{font-size:11px;line-height:1.85;color:var(--dim);font-weight:700;white-space:pre-line;}
+  .lic{font-size:11px;line-height:1.85;color:var(--dim);font-weight:700;white-space:pre-line;padding:14px 16px 16px;}
 
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}.row,.row.anim{opacity:1;}.sit{opacity:1;}.tab.on .sit{opacity:0;}.tab.on .stand{opacity:1;}}
 
@@ -609,6 +610,9 @@
 </style>
 <!-- 主题和字号要在首帧之前定下来，否则深色用户会先看到一屏亮白、大字号用户会先看到一屏小字（FOUC） -->
 <script>
+/* 构建号注入到 JS 里：关于页和「检查更新」要读它。
+   只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
+window.__BUILD = '1029.19:33';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -646,7 +650,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.19:23</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.19:33</div>
         </div>
       </div>
     </section>
@@ -1012,7 +1016,7 @@ try{
           <div class="cell" id="setDiscover"><div class="chip" style="background:var(--purple)">🧭</div><div class="nm">发现页管理</div><div class="chev">›</div></div>
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.19:23</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.19:33</div>
       </div>
     </section>
 
@@ -1122,7 +1126,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.19:23</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.19:33</div>
       </div>
     </section>
 
@@ -2563,12 +2567,14 @@ try{
     return from + ' – ' + (a > b ? '次日 ' : '') + to;
   }
 
-  /* 字节数转人类可读。存储空间页全用它，避免各页面自己格式化出不一致的单位。 */
+  /* 字节数转人类可读。存储空间页全用它，避免各页面自己格式化出不一致的单位。
+     数字和单位之间用不换行空格（\u00A0）：普通空格会被当成断行点，
+     窄屏上「0 B」会被拆成「0」换行「B）」，看起来像排版崩了。 */
   function fmtBytes(n){
     n = Number(n) || 0;
-    if(n < 1024) return n + ' B';
-    if(n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-    return (n / 1024 / 1024).toFixed(1) + ' MB';
+    if(n < 1024) return n + '\u00A0B';
+    if(n < 1024 * 1024) return (n / 1024).toFixed(1) + '\u00A0KB';
+    return (n / 1024 / 1024).toFixed(1) + '\u00A0MB';
   }
 
   /* 从缓存的消息数组里按类型归类字符数。
@@ -5234,6 +5240,17 @@ try{
     for(var i = 0; i < nodes.length; i++){
       nodes[i].style.display = off[nodes[i].getAttribute('data-feat')] ? 'none' : '';
     }
+    /* 再按「卡片」判一次：一整组入口全关掉时，卡片会剩一个只有边框的空框，
+       在发现页上就是一条突兀的空条。 */
+    var cards = document.querySelectorAll('[data-screen="discover"] .card');
+    for(var j = 0; j < cards.length; j++){
+      var cells = cards[j].querySelectorAll('[data-feat]');
+      var open = 0;
+      for(var k = 0; k < cells.length; k++){
+        if(cells[k].style.display !== 'none') open++;
+      }
+      cards[j].style.display = (cells.length && !open) ? 'none' : '';
+    }
   }
 
   function setPref(k, v){
@@ -6290,7 +6307,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.19:23';
+    var BUILD='1029.19:33';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
