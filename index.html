@@ -113,6 +113,48 @@
   .emogrid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;padding:4px 8px 10px;overflow-y:auto;height:calc(100% - 44px);-webkit-overflow-scrolling:touch;}
   .emogrid span{font-size:26px;line-height:1;display:flex;align-items:center;justify-content:center;height:38px;border-radius:10px;}
   .emogrid span:active{background:var(--soft);}
+  /* ===== P2-5 群聊 ===== */
+  /* 群聊列表头像用 emoji，不走 avaImg */
+  .ava.gava{font-size:25px;line-height:1;font-weight:400;}
+  /* 消息列容器：让「发送者昵称」能稳定地摆在气泡正上方 */
+  .msg .col{display:flex;flex-direction:column;min-width:0;max-width:68%;}
+  .msg.out .col{align-items:flex-end;}
+  .msg .col > .bubble{max-width:100%;}
+  .msg .col > .bubble.imgonly{max-width:100%;}
+  .msender{font-size:10.5px;font-weight:800;color:#9b93ad;margin:0 0 3px 7px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mention{color:#0a7bd8;font-weight:800;}
+  /* 会话列表里的「[有人@我]」：红字，跟微信一致，扫一眼就能看见 */
+  .atme{color:#e8354f;font-weight:800;}
+  .msg.out .mention{color:#fff2;background:#fff3;border-radius:4px;}
+  /* 建群选人 */
+  .gcbar{padding:10px 12px 0;}
+  .gcbar .fld{width:100%;box-sizing:border-box;}
+  .gcsel{display:flex;gap:7px;flex-wrap:wrap;padding:9px 0 2px;}
+  .gcsel .gp{width:46px;height:46px;border:3px solid var(--ink);border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+  .gcsel .gp img{width:100%;height:100%;object-fit:cover;object-position:center 10%;}
+  .gchk{margin-left:auto;width:23px;height:23px;border-radius:8px;border:2.5px solid var(--ink);background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0;}
+  .gchk.on{background:var(--lime);color:var(--ink);}
+  /* 群信息成员网格 */
+  .gmember{display:grid;grid-template-columns:repeat(5,1fr);gap:12px 6px;padding:14px 10px;}
+  .gmember .gc{display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;}
+  .gmember .gc .ava{width:46px;height:46px;border-radius:14px;}
+  .gmember .gc .gn{font-size:10.5px;font-weight:700;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .gmember .gc .gr{font-size:9px;font-weight:800;color:var(--pink);}
+  .gval{margin-left:auto;color:#9b93ad;font-size:12.5px;font-weight:800;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* 聊天输入栏里的 @ 选人浮层（向上弹，不遮挡输入框） */
+  .inputbar{position:relative;}
+  .atbox{position:absolute;left:8px;right:8px;bottom:calc(100% - 4px);max-height:186px;overflow-y:auto;background:#fff;
+         border:3px solid var(--ink);border-radius:14px;box-shadow:4px 4px 0 var(--pink);display:none;z-index:30;}
+  .atbox.on{display:block;}
+  .atbox .ait{display:flex;align-items:center;gap:9px;padding:7px 11px;font-size:13px;font-weight:700;border-bottom:2px solid #00000010;}
+  .atbox .ait:last-child{border-bottom:none;}
+  .atbox .ait .ava{width:30px;height:30px;border-radius:10px;border-width:2.5px;}
+
+  /* 群系统消息（建群/邀请/退群/改名）：居中灰底小字，不当成聊天内容 */
+  .msg.system{justify-content:center;margin:8px 14px;}
+  .sysmsg{background:#efe9f5;color:#8b8199;font-size:11.5px;font-weight:800;
+          padding:5px 11px;border-radius:10px;text-align:center;max-width:80%;line-height:1.5;}
+
   /* 撤回后的提示气泡：去色、缩小、不抢眼 */
   .bubble.recalled{background:#efe9f5 !important;color:#8b8199 !important;border:2px dashed #cdc2dd !important;
                    box-shadow:none !important;font-weight:800;font-size:12px;padding:6px 11px;}
@@ -300,7 +342,11 @@
   .hit .mid .sub{font-size:11.5px;color:#9a93ad;font-weight:700;margin-top:3px;}
   .btnRow{display:flex;gap:9px;margin:10px 0;}
   .btnRow .lbtn{flex:1;height:46px;font-size:14px;}
-  .btnGhost{background:var(--soft);}
+  /* ghost 按钮原本只换了背景色，文字仍是 .lbtn 的白色 —— 浅底白字等于看不见。
+     同时补 width:100%：它被放在普通 block 容器里，不是 .btnRow，宽度会塌成文字宽。 */
+  .btnGhost{background:var(--soft);color:var(--ink);width:100%;}
+  /* 危险动作（退群/解散）用红字，别让用户以为是普通按钮 */
+  .lbtn.danger{color:#d81b45;border-color:#d81b45;box-shadow:4px 4px 0 rgba(216,27,69,.28);}
   .req{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:8px 0;background:#fff;border:3px solid var(--ink);border-radius:16px;box-shadow:3px 3px 0 var(--pink);animation:pop .3s ease;}
   .req .mid{flex:1;min-width:0;}
   .req .rmsg{font-size:11.5px;color:#8a80a0;font-weight:700;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -348,7 +394,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.14:11</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.14:51</div>
         </div>
       </div>
     </section>
@@ -419,11 +465,14 @@
         <div class="msgs" id="msgs"></div>
       </div>
       <div class="inputbar">
+        <div class="ibtn" id="btnAt" role="button" aria-label="提到某人" style="display:none">@</div>
         <div class="ibtn" id="btnPickImg" role="button" aria-label="发送图片">🖼</div>
         <textarea class="field" id="msgInput" rows="1" maxlength="2000" placeholder="说点什么…"></textarea>
         <div class="ibtn" id="btnEmoji" role="button" aria-label="表情">😀</div>
         <button class="send" id="sendBtn" type="button" disabled>发送</button>
         <input type="file" id="filePick" accept="image/*" multiple style="display:none">
+        <!-- 群聊 @ 选人（P2-5）：向上弹出，选完自动补一个空格 -->
+        <div class="atbox" id="atBox"></div>
       </div>
       <!-- 表情面板（P2 / FR-308）：占键盘位置从底部展开 -->
       <div class="emopanel" id="emoPanel">
@@ -446,16 +495,75 @@
           <span class="cnt" id="newReqCnt" style="display:none">0</span>
           <div class="chev">›</div>
         </div>
-        <div class="topcell" id="cellGroups">
+        <div class="topcell" id="cellGroups" role="button">
           <div class="chip" style="background:var(--lime)">👥</div>
           <div style="flex:1;font-weight:800;font-size:14.5px;">群聊</div>
-          <div class="chev" style="font-size:11px;color:#c6bdd6;">下一阶段</div>
+          <span class="cnt" id="groupCnt" style="display:none">0</span>
+          <div class="chev">›</div>
         </div>
         <div id="friendList"></div>
         <div class="empty" id="friendEmpty" style="display:none">
           <div class="eico">🐣</div>
           <div class="etitle">还没有好友</div>
           <div class="esub">点右上角 ➕ 按邮箱添加<br>对方通过后就能开始聊了</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 我的群聊（P2-5） ================= -->
+    <section class="screen" data-screen="grouplist">
+      <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">群聊</div>
+        <div class="ico-btn" id="btnNewGroup">➕</div>
+      </div>
+      <div class="body">
+        <div class="clist" id="groupList"></div>
+        <div class="empty" id="groupEmpty" style="display:none">
+          <div class="eico">👥</div>
+          <div class="etitle">还没有群聊</div>
+          <div class="esub">点右上角 ➕ 选几位好友开个群</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 建群：选联系人 ================= -->
+    <section class="screen" data-screen="groupcreate">
+      <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">选择联系人</div>
+        <div class="ico-btn" id="btnCreateGroup">✓</div>
+      </div>
+      <div class="body">
+        <div class="gcbar">
+          <input class="fld" id="iGroupName" maxlength="30" placeholder="群名称（可选，默认「群聊」）">
+          <div class="gcsel" id="gcSel"></div>
+        </div>
+        <div id="gcList"></div>
+        <div class="empty" id="gcEmpty" style="display:none">
+          <div class="eico">🐣</div>
+          <div class="etitle">还没有好友</div>
+          <div class="esub">先加好友才能建群</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 群信息 ================= -->
+    <section class="screen" data-screen="groupinfo">
+      <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">群聊信息</div>
+        <div class="ico-btn" id="btnGroupAdd">➕</div>
+      </div>
+      <div class="body">
+        <div class="gmember" id="gMembers"></div>
+        <div class="card" style="margin:4px 12px 12px;">
+          <div class="cell" id="cellRenameGroup"><div class="nm">群聊名称</div><div class="gval" id="gNameVal">-</div><div class="chev">›</div></div>
+          <div class="cell"><div class="nm">群邀请码</div><div class="gval" id="gCodeVal">-</div></div>
+          <div class="cell"><div class="nm">群成员</div><div class="gval" id="gCountVal">-</div></div>
+        </div>
+        <div style="padding:0 12px 16px;">
+          <button class="lbtn btnGhost danger" id="btnLeaveGroup" type="button"><span>退出群聊</span></button>
         </div>
       </div>
     </section>
@@ -593,7 +701,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.14:11</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.14:51</div>
       </div>
     </section>
 
@@ -876,7 +984,9 @@
              避免「返回列表后角标又冒出来再消失」的闪烁 */
           unread: (S.readMark[c.id] && (Date.now() - S.readMark[c.id]) < 15000) ? 0 : Number(c.unread || 0),
           pinned_at: c.pinned_at, mute: !!c.mute,
-          members: Number(c.member_count || 0), draft: c.draft || ''
+          members: Number(c.member_count || 0), draft: c.draft || '',
+          last_nick: c.last_sender_nick || '', gavatar: c.conv_avatar || '👥',
+          mention: Number(c.mention_unread || 0)
         };
       });
       /* 本地删除的会话：只要还没有比删除时刻更新的消息就继续隐藏；
@@ -953,6 +1063,9 @@
 
   /* ---------------- 会话列表渲染 ---------------- */
   function convName(c){
+    /* 群聊必须优先判类型：list_conversations 里 peer 只对单聊生效，
+       但保险起见先卡 ctype，避免任何情况下把某个成员昵称当群名 */
+    if(c.ctype === 'group') return c.title || '群聊';
     if(c.peer_nick) return c.peer_nick;
     if(c.title && c.title !== '我们的小房间') return c.title;
     return '等待对方加入';
@@ -965,7 +1078,10 @@
     else if(c.last.type === 'voice') body = '[语音]';
     else if(c.last.type === 'file') body = '[文件]';
     else if(c.last.type === 'system') return body;
-    return (c.last.sender_id === S.sess.user.id ? '我：' : '') + body;
+    var mine = (c.last.sender_id === S.sess.user.id);
+    /* 群聊没有「对方」概念，一律「谁说的：内容」，否则完全分不清是谁在讲话 */
+    if(c.ctype === 'group') return (mine ? '我' : (c.last_nick || '有人')) + '：' + body;
+    return (mine ? '我：' : '') + body;
   }
 
   /* 会话行：cid -> { el, sig }。复用节点做增量更新，避免每轮轮询整表重建导致闪动 */
@@ -979,27 +1095,38 @@
   /* 影响这一行「显示内容」的字段签名，签名不变就一个字节都不碰 DOM */
   function convSig(c){
     return [convName(c), fmtListTime(c.last && c.last.created_at), convPreview(c),
-            c.unread, c.mute ? 1 : 0, c.pinned_at ? 1 : 0, c.peer_avatar || ''].join('\u0001');
+            c.unread, c.mute ? 1 : 0, c.pinned_at ? 1 : 0,
+            c.peer_avatar || '', c.ctype || '', c.last_nick || '', c.gavatar || '',
+            c.mention || 0].join('\u0001');
   }
 
   function convRowBuild(c){
     var row = el('div', 'row anim' + (c.pinned_at ? ' pinned' : ''));
     row.dataset.cid = c.id;
 
-    var ava = el('div', 'ava');
-    ava.appendChild(avaImg(c.peer_avatar || 'ava_cat'));
+    var ava;
+    if(c.ctype === 'group'){
+      ava = el('div', 'ava gava', c.gavatar || '👥');
+    }else{
+      ava = el('div', 'ava');
+      ava.appendChild(avaImg(c.peer_avatar || 'ava_cat'));
+    }
 
     var mid = el('div', 'mid');
     var nm = el('div', 'nm');
     var nmText = document.createTextNode(convName(c));
     var tEl = el('span', 't', fmtListTime(c.last && c.last.created_at));
     nm.appendChild(nmText); nm.appendChild(tEl);
-    var msEl = el('div', 'ms', convPreview(c));
+    var msEl = el('div', 'ms');
+    var msAt = el('span', 'atme', '[有人@我] ');
+    msAt.style.display = c.mention > 0 ? '' : 'none';
+    var msTx = document.createTextNode(convPreview(c));
+    msEl.appendChild(msAt); msEl.appendChild(msTx);
     mid.appendChild(nm); mid.appendChild(msEl);
     row.appendChild(ava); row.appendChild(mid);
 
     /* 缓存子节点引用，后续更新只改文本，不重建结构 */
-    row._refs = { nmText: nmText, t: tEl, ms: msEl };
+    row._refs = { nmText: nmText, t: tEl, ms: msEl, msAt: msAt, msTx: msTx };
 
     if(c.unread > 0){
       if(c.mute) row.appendChild(el('span', 'dot'));
@@ -1025,7 +1152,11 @@
     var nm = convName(c), tm = fmtListTime(c.last && c.last.created_at), pv = convPreview(c);
     if(r.nmText.nodeValue !== nm) r.nmText.nodeValue = nm;
     if(r.t.textContent !== tm) r.t.textContent = tm;
-    if(r.ms.textContent !== pv) r.ms.textContent = pv;
+    if(r.msTx && r.msTx.nodeValue !== pv) r.msTx.nodeValue = pv;
+    if(r.msAt){
+      var wantAt = (c.mention > 0) ? '' : 'none';
+      if(r.msAt.style.display !== wantAt) r.msAt.style.display = wantAt;
+    }
 
     if(!!c.pinned_at !== row.classList.contains('pinned')) row.classList.toggle('pinned', !!c.pinned_at);
 
@@ -1276,6 +1407,19 @@
     if(m.id) wrap.dataset.id = m.id;
     if(m.client_msg_id) wrap.dataset.client = m.client_msg_id;
 
+    /* 系统消息（建群、邀请、退群、改群名）居中显示，不带头像和气泡 */
+    if(m.msg_type === 'system' && !m.deleted_at){
+      var sys = el('div', 'msg system');
+      if(m.id) sys.dataset.id = m.id;
+      if(m.client_msg_id) sys.dataset.client = m.client_msg_id;
+      sys.appendChild(el('div', 'sysmsg', m.content));
+      if(m.id){ S.ids[m.id] = 1; if(m.id > S.lastId) S.lastId = m.id; }
+      if(m.created_at) S.lastAt = m.created_at;
+      msgsBox.appendChild(sys);
+      return sys;
+    }
+
+    var inGroup = !!(S.cur && S.cur.ctype === 'group');
     var pics = (m.msg_type === 'image') ? parsePics(m.content) : null;
     var bub;
     if(m.deleted_at){
@@ -1288,20 +1432,38 @@
       /* 图片消息但 URL 解析不出来（极端情况：本地预览没生成成功）→ 别把 JSON 糊到脸上 */
       bub = el('div', 'bubble', '[图片]');
     } else {
-      bub = el('div', 'bubble', m.content);
+      bub = el('div', 'bubble');
+      /* @ 提及要高亮，但不能用 innerHTML 拼用户内容 —— 走文本节点分段 */
+      renderRichText(bub, m.content, m.mentions);
       /* 大表情：整条只有 1–3 个 emoji 时去掉气泡壳、放大到 38px（B-03） */
       var ec = (!m.msg_type || m.msg_type === 'text') ? emojiCount(m.content) : 0;
       if(ec >= 1 && ec <= 3) bub.classList.add('bigemoji');
     }
-    var av = avaImg(mine ? S.me.avatar : ((S.cur && S.cur.peer_avatar) || 'ava_cat'));
+    /* 群聊里别人的头像要用「他自己」的，不能一律套会话 peer_avatar */
+    var avKey;
+    if(mine){
+      avKey = S.me.avatar;
+    }else if(inGroup){
+      var gm0 = memberOf(m.sender_id);
+      avKey = gm0 ? (gm0.gavatar || 'ava_cat') : 'ava_cat';
+    }else{
+      avKey = (S.cur && S.cur.peer_avatar) || 'ava_cat';
+    }
+    var av = avaImg(avKey);
     av.className = 'a';
 
     /* DOM 顺序统一「头像 → 气泡」，自己的消息靠 .msg.out 的 row-reverse 反转，
        视觉上才是「气泡在左、头像最右」（同微信）。
        原来 out 分支写成 [气泡, 头像]，被 row-reverse 又反了一次，头像反而跑到左边、
        气泡直接贴屏边——文字消息不明显，图片消息一看就是别人发的。 */
+    var col = el('div', 'col');
+    if(inGroup && !mine){
+      var gm1 = memberOf(m.sender_id);
+      col.appendChild(el('div', 'msender', gm1 ? gm1.nickname : '群成员'));
+    }
+    col.appendChild(bub);
     wrap.appendChild(av);
-    wrap.appendChild(bub);
+    wrap.appendChild(col);
 
     msgsBox.appendChild(wrap);
     fillImgIn(wrap);
@@ -1323,17 +1485,21 @@
     if(b) requestAnimationFrame(function(){ b.scrollTop = b.scrollHeight; });
   }
 
-  function fetchMessages(initial){
+  function fetchMessages(initial, retried){
     if(!S.cur) return Promise.resolve([]);
     /* 不再过滤 deleted_at：撤回的消息要留下来显示「XX撤回了一条消息」，
-       真正「谁都看不见」的是本地删除（message_deletions），在渲染时排除 */
-    var sel = 'id,sender_id,content,created_at,msg_type,client_msg_id,deleted_at';
+       真正「谁都看不见」的是本地删除（message_deletions），在渲染时排除。
+       mentions 是 P2-5 才加的列：数据库还没跑迁移时查它会整条 400，
+       那会把聊天功能一起拖挂，所以探测失败后永久降级为不查该列。 */
+    var selBase = 'id,sender_id,content,created_at,msg_type,client_msg_id,deleted_at';
+    var sel = S.noMentions ? selBase : (selBase + ',mentions');
     var q = initial
       ? '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&order=id.desc&limit=80'
       : '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&id=gt.' + S.lastId + '&order=id.asc&limit=100';
     return api(q).then(function(rows){
       rows = rows || [];
       var keptMap = {}, keptTail = [];
+      if(rows.length && rows[0].mentions === undefined) S.mentionsOff = true;
       if(initial){
         rows.reverse();
         /* 竞态保护：本请求发出后用户可能已经开始发消息，这些节点在服务端响应里
@@ -1390,19 +1556,43 @@
       if(rows.length) S.lastAt = rows[rows.length - 1].created_at;
       if(added) scrollBottom();
       return rows;
+    }).catch(function(e){
+      /* 400/404 多半是列不存在（迁移没跑）。降级重试一次，别让新功能把老功能带崩。 */
+      if(!retried && !S.noMentions && e && (e.status === 400 || e.status === 404)){
+        S.noMentions = true;
+        return fetchMessages(initial, true);
+      }
+      throw e;
     });
   }
 
   /* ---------------- 发送（幂等 + 超时 + 重发）---------------- */
-  function postMessage(cid, text, clientId, type){
+  function postMessage(cid, text, clientId, type, mentions){
+    var body = { p_conv: cid, p_content: text, p_client_id: clientId, p_type: type || 'text' };
+    /* 只有真的 @ 到人才带这个参数，普通文本消息保持原样 */
+    if(mentions && mentions.length) body.p_mentions = mentions;
     return api('/rest/v1/rpc/send_message', {
       method: 'POST',
       timeout: 15000,
-      body: { p_conv: cid, p_content: text, p_client_id: clientId, p_type: type || 'text' }
+      body: body
     }).then(function(res){
       var row = (res && res[0]) || null;
       if(!row) throw new Error('发送失败，请重试');
       return row;
+    }).catch(function(e){
+      /* 数据库还是旧版 send_message（没有 p_mentions 形参）时会 PGRST202/404。
+         退一步去掉这个参数重发：@ 提示丢了，但消息必须发得出去。 */
+      if(body.p_mentions && e && (e.status === 404 || e.status === 400)){
+        S.mentionsOff = true;
+        delete body.p_mentions;
+        return api('/rest/v1/rpc/send_message', { method: 'POST', timeout: 15000, body: body })
+          .then(function(res){
+            var row = (res && res[0]) || null;
+            if(!row) throw new Error('发送失败，请重试');
+            return row;
+          });
+      }
+      throw e;
     });
   }
 
@@ -1657,9 +1847,11 @@
     if(!S.cur) return;
     var cid = S.cur.id;
     var key = uuid();
-    var node = addMsg({ sender_id: S.me.id, content: text, created_at: new Date().toISOString(), client_msg_id: key }, true, true);
+    var mnt = extractMentions(text);
+    var node = addMsg({ sender_id: S.me.id, content: text, created_at: new Date().toISOString(),
+                        client_msg_id: key, mentions: mnt }, true, true);
     if(!node) return;
-    S.pending[key] = { text: text, cid: cid };
+    S.pending[key] = { text: text, cid: cid, mentions: mnt };
     delete S.ids['c:' + key];
     scrollBottom();
     deliver(key, node, text, cid);
@@ -1667,7 +1859,8 @@
 
   function deliver(key, node, text, cid, attempt){
     attempt = attempt || 0;
-    return postMessage(cid, text, key).then(function(row){
+    var pg = S.pending[key];
+    return postMessage(cid, text, key, 'text', pg && pg.mentions).then(function(row){
       /* 防御：节点若曾被全量重绘摘掉，这里补挂回去，避免「已发出但看不见」*/
       if(msgsBox && !msgsBox.contains(node)) msgsBox.appendChild(node);
       node.classList.remove('pending');
@@ -1882,6 +2075,431 @@
     }).catch(function(e){ toast(friendly(e && e.message)); });
   }
 
+  /* ================= P2-5 群聊 =================
+     群成员缓存 gMembers 一处多用：消息头像、发送者昵称、@ 选人。
+     所有群操作都走 RPC，前端不做权限判断，只按返回的 my_role 决定菜单是否显示。 */
+  var gMembers = [];
+  var gInfo = null;
+  var gSel = {};
+  var gMode = 'create';
+
+  function memberOf(uid){
+    for(var i = 0; i < gMembers.length; i++){
+      if(gMembers[i].user_id === uid) return gMembers[i];
+    }
+    return null;
+  }
+
+  function loadGroupMembers(cid){
+    if(!cid) return Promise.resolve([]);
+    return api('/rest/v1/rpc/list_group_members', { method: 'POST', body: { p_conv: cid } })
+      .then(function(rows){ gMembers = rows || []; return gMembers; })
+      .catch(function(){ gMembers = []; return []; });
+  }
+
+  /* 按 id 打开会话：群刚建好时列表里可能还没同步，先刷一次 */
+  function openConvById(cid){
+    var c = convById(cid);
+    if(c) return openConv(c);
+    return loadConvs().then(function(){
+      var t = convById(cid);
+      if(t) return openConv(t);
+      toast('群聊还没同步过来，稍后再试');
+    });
+  }
+
+  /* ---------------- 我的群聊 ---------------- */
+  function openGroupList(){
+    goPage('grouplist', 'contact');
+    var box = $('#groupList');
+    if(box) box.innerHTML = '<div class="time">加载中…</div>';
+    return api('/rest/v1/rpc/list_my_groups', { method: 'POST', body: {} })
+      .then(renderGroupList)
+      .catch(function(e){
+        if(box) box.innerHTML = '';
+        toast(friendly(e && e.message));
+      });
+  }
+
+  function renderGroupList(rows){
+    var box = $('#groupList'), empty = $('#groupEmpty');
+    if(!box) return;
+    box.innerHTML = '';
+    rows = rows || [];
+    if(empty) empty.style.display = rows.length ? 'none' : 'flex';
+    /* 通讯录「群聊」上的数字 */
+    var cnt = $('#groupCnt');
+    if(cnt){
+      cnt.textContent = String(rows.length);
+      cnt.style.display = rows.length ? 'flex' : 'none';
+    }
+    rows.forEach(function(g){
+      var row = el('div', 'row');
+      row.dataset.gid = g.gid;
+      row.appendChild(el('div', 'ava gava', g.gavatar || '👥'));
+      var mid = el('div', 'mid');
+      var nm = el('div', 'nm');
+      nm.appendChild(document.createTextNode(g.gname || '群聊'));
+      if(g.my_role === 'owner') nm.appendChild(el('span', 't', '群主'));
+      mid.appendChild(nm);
+      mid.appendChild(el('div', 'ms', (Number(g.member_count) || 0) + ' 人'));
+      row.appendChild(mid);
+      var chev = el('div', 'chev', '›');
+      chev.style.cssText = 'align-self:center;font-size:18px;color:#c6bdd6;';
+      row.appendChild(chev);
+      row.addEventListener('click', function(){ openConvById(g.gid); });
+      box.appendChild(row);
+    });
+  }
+
+  /* ---------------- 建群 / 邀请 ---------------- */
+  function openGroupCreate(mode){
+    gMode = mode || 'create';
+    gSel = {};
+    var nameInp = $('#iGroupName');
+    if(nameInp) nameInp.style.display = (gMode === 'create') ? '' : 'none';
+    var ttl = $('.screen[data-screen="groupcreate"] .cttl');
+    if(ttl) ttl.textContent = (gMode === 'create') ? '选择联系人' : '邀请好友进群';
+    goScreen('groupcreate');
+    renderGcList();
+  }
+
+  function gcFriendKey(f){ return f.user_id; }
+
+  function renderGcList(){
+    var box = $('#gcList'), sel = $('#gcSel'), empty = $('#gcEmpty');
+    if(!box) return;
+    box.innerHTML = '';
+    if(sel) sel.innerHTML = '';
+    var fs = S.friends || [];
+    if(empty) empty.style.display = fs.length ? 'none' : 'flex';
+
+    /* 已选头像条 */
+    fs.forEach(function(f){
+      if(!gSel[gcFriendKey(f)]) return;
+      var gp = el('div', 'gp');
+      gp.appendChild(avaImg(f.avatar || 'ava_cat'));
+      gp.addEventListener('click', function(){ delete gSel[gcFriendKey(f)]; renderGcList(); });
+      if(sel) sel.appendChild(gp);
+    });
+
+    fs.forEach(function(f){
+      var key = gcFriendKey(f);
+      /* 用通讯录同款 .ccell 白卡行，避免选人页看起来像另一套 UI */
+      var row = el('div', 'ccell');
+      row.dataset.uid = key;
+      var av = el('div', 'ava');
+      av.appendChild(avaImg(f.avatar || 'ava_cat'));
+      row.appendChild(av);
+      row.appendChild(el('div', 'nm', f.remark || f.nickname));
+      var on = !!gSel[key];
+      row.appendChild(el('div', 'gchk' + (on ? ' on' : ''), on ? '✓' : ''));
+      row.addEventListener('click', function(){
+        if(gSel[key]) delete gSel[key]; else gSel[key] = 1;
+        renderGcList();
+      });
+      box.appendChild(row);
+    });
+    fillImgIn(box);
+    fillImgIn(sel);
+  }
+
+  function doCreateGroup(){
+    var ids = Object.keys(gSel);
+    if(!ids.length){ toast('至少选一位好友'); return Promise.resolve(); }
+    var btn = $('#btnCreateGroup');
+    if(btn) btn.style.pointerEvents = 'none';
+
+    var done = function(){ if(btn) btn.style.pointerEvents = ''; };
+
+    if(gMode === 'invite'){
+      var cid = S.cur && S.cur.id;
+      if(!cid){ done(); return Promise.resolve(); }
+      return api('/rest/v1/rpc/add_group_members', { method: 'POST', body: { p_conv: cid, p_users: ids } })
+        .then(function(n){
+          done();
+          toast('已邀请 ' + (Number(n) || 0) + ' 位好友');
+          goScreen('groupinfo');
+          return Promise.all([loadGroupMembers(cid), loadGroupInfo(cid)]).then(function(){ renderGroupInfo(); });
+        })
+        .catch(function(e){ done(); toast(friendly(e && e.message)); });
+    }
+
+    var name = ($('#iGroupName') && $('#iGroupName').value || '').trim();
+    if(!name){
+      /* 同微信：不填就用成员昵称拼「A、B、C、D等」 */
+      var names = [S.me.nickname || '我'];
+      (S.friends || []).forEach(function(f){
+        if(gSel[f.user_id]) names.push(f.remark || f.nickname || '好友');
+      });
+      name = names.slice(0, 4).join('、') + (names.length > 4 ? '等' : '');
+      if(name.length > 30) name = name.slice(0, 30);
+    }
+    return api('/rest/v1/rpc/create_group', { method: 'POST', body: { p_name: name, p_members: ids } })
+      .then(function(cid){
+        done();
+        if(!cid){ toast('建群失败，请重试'); return; }
+        toast('群聊已创建');
+        return loadConvs().then(function(){
+          var c = convById(cid);
+          if(c) return openConv(c);
+          setTab('chat');
+        });
+      })
+      .catch(function(e){ done(); toast(friendly(e && e.message)); });
+  }
+
+  /* ---------------- 群信息 ---------------- */
+  function loadGroupInfo(cid){
+    return api('/rest/v1/rpc/get_group_info', { method: 'POST', body: { p_conv: cid } })
+      .then(function(rows){ gInfo = (rows && rows[0]) || null; return gInfo; })
+      .catch(function(){ gInfo = null; return null; });
+  }
+
+  function openGroupInfo(){
+    if(!S.cur || S.cur.ctype !== 'group') return Promise.resolve();
+    var cid = S.cur.id;
+    goScreen('groupinfo');
+    var box = $('#gMembers');
+    if(box) box.innerHTML = '<div class="time" style="grid-column:1/-1">加载中…</div>';
+    return Promise.all([loadGroupMembers(cid), loadGroupInfo(cid)])
+      .then(renderGroupInfo)
+      .catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  function renderGroupInfo(){
+    var box = $('#gMembers');
+    if(box){
+      box.innerHTML = '';
+      gMembers.forEach(function(m){
+        var gc = el('div', 'gc');
+        var av = el('div', 'ava');
+        av.appendChild(avaImg(m.gavatar || 'ava_cat'));
+        gc.appendChild(av);
+        gc.appendChild(el('div', 'gn', m.nickname + (m.is_me ? '（我）' : '')));
+        if(m.role === 'owner') gc.appendChild(el('div', 'gr', '群主'));
+        else if(m.role === 'admin') gc.appendChild(el('div', 'gr', '管理员'));
+        gc.addEventListener('click', function(){ memberMenu(m); });
+        box.appendChild(gc);
+      });
+      /* 邀请入口做成最后一格「+」，比放在右上角更好点 */
+      if(gInfo){
+        var add = el('div', 'gc');
+        var av2 = el('div', 'ava');
+        av2.style.cssText = 'font-size:22px;color:#c6bdd6;background:#faf7ff;';
+        av2.textContent = '＋';
+        add.appendChild(av2);
+        add.appendChild(el('div', 'gn', '邀请'));
+        add.addEventListener('click', function(){ openGroupCreate('invite'); });
+        box.appendChild(add);
+      }
+      fillImgIn(box);
+    }
+    if(gInfo){
+      if($('#gNameVal')) $('#gNameVal').textContent = gInfo.gname || '群聊';
+      if($('#gCountVal')) $('#gCountVal').textContent = (Number(gInfo.member_count) || gMembers.length) + ' 人';
+      if($('#gCodeVal')) $('#gCodeVal').textContent = (S.cur && S.cur.code) || '-';
+      var lb = $('#btnLeaveGroup');
+      if(lb && lb.querySelector('span')){
+        var mine = (gInfo.owner_id === S.sess.user.id);
+        var only = (Number(gInfo.member_count) || 1) <= 1;
+        lb.querySelector('span').textContent = mine ? (only ? '解散该群聊' : '退出并转让群主') : '退出群聊';
+      }
+    }
+  }
+
+  function memberMenu(m){
+    var myRole = (gInfo && gInfo.my_role) || 'member';
+    var items = [];
+    if(!m.is_me && m.role !== 'owner' && (myRole === 'owner' || (myRole === 'admin' && m.role === 'member'))){
+      items.push({ label: '移出群聊', danger: true, fn: function(){ doRemoveMember(m); } });
+    }
+    if(!items.length){ toast(m.nickname); return; }
+    openSheet(items);
+  }
+
+  function doRemoveMember(m){
+    var cid = S.cur && S.cur.id;
+    if(!cid) return Promise.resolve();
+    return api('/rest/v1/rpc/remove_group_member', { method: 'POST', body: { p_conv: cid, p_user: m.user_id } })
+      .then(function(){
+        toast('已移出');
+        return Promise.all([loadGroupMembers(cid), loadGroupInfo(cid)]).then(function(){ renderGroupInfo(); });
+      })
+      .catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  function doRenameGroup(){
+    var cid = S.cur && S.cur.id;
+    if(!cid || !gInfo) return Promise.resolve();
+    var v = window.prompt('新的群聊名称', gInfo.gname || '');
+    if(v === null) return Promise.resolve();
+    v = String(v).trim();
+    if(!v){ toast('群名不能为空'); return Promise.resolve(); }
+    return api('/rest/v1/rpc/rename_group', { method: 'POST', body: { p_conv: cid, p_name: v } })
+      .then(function(){
+        toast('群名已修改');
+        return Promise.all([loadGroupInfo(cid), loadConvs()]).then(function(){
+          renderGroupInfo();
+          renderConvs();
+          if(S.cur) S.cur.title = v;
+          if($('#chatTitle')) $('#chatTitle').textContent = convName(S.cur);
+        });
+      })
+      .catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  function doLeaveGroup(){
+    var cid = S.cur && S.cur.id;
+    if(!cid || !gInfo) return Promise.resolve();
+    var mine = (gInfo.owner_id === S.sess.user.id);
+    var only = (Number(gInfo.member_count) || 1) <= 1;
+    var label = mine ? (only ? '解散该群聊' : '退出并转让群主') : '退出群聊';
+    openSheet([
+      { label: label, danger: true, fn: function(){
+          api('/rest/v1/rpc/leave_group', { method: 'POST', body: { p_conv: cid } })
+            .then(function(){
+              S.cur = null;
+              setTab('chat');
+              return loadConvs().then(function(){
+                renderConvs();
+                var n = $('#groupCnt'); if(n) n.style.display = 'none';
+              });
+            })
+            .catch(function(e){ toast(friendly(e && e.message)); });
+        } }
+    ]);
+  }
+
+  /* ---------------- @ 提及 ---------------- */
+  var atQuery = '';
+
+  function closeAtBox(){
+    var box = $('#atBox');
+    if(box) box.classList.remove('on');
+  }
+
+  function renderAtBox(q){
+    var box = $('#atBox');
+    if(!box) return;
+    box.innerHTML = '';
+    var list = gMembers.filter(function(m){
+      if(m.is_me) return false;
+      return !q || m.nickname.indexOf(q) > -1;
+    }).slice(0, 24);
+    if(!list.length){ box.classList.remove('on'); return; }
+    list.forEach(function(m){
+      var it = el('div', 'ait');
+      var av = el('div', 'ava');
+      av.appendChild(avaImg(m.gavatar || 'ava_cat'));
+      it.appendChild(av);
+      it.appendChild(el('div', '', m.nickname));
+      it.addEventListener('mousedown', function(ev){ ev.preventDefault(); pickAt(m); });
+      it.addEventListener('click', function(){ pickAt(m); });
+      box.appendChild(it);
+    });
+    fillImgIn(box);
+    box.classList.add('on');
+  }
+
+  function onAtInput(){
+    if(!S.cur || S.cur.ctype !== 'group'){ closeAtBox(); return; }
+    var v = inp.value, pos = inp.selectionStart;
+    if(typeof pos !== 'number') pos = v.length;
+    /* 从光标往前找最近的 @，中间遇到空白就放弃（说明不是一次提及） */
+    var at = -1;
+    for(var i = pos - 1; i >= 0; i--){
+      var ch = v.charAt(i);
+      if(ch === '@'){ at = i; break; }
+      if(ch === ' ' || ch === '\n' || ch === '\t'){ break; }
+    }
+    if(at < 0){ closeAtBox(); return; }
+    atQuery = v.slice(at + 1, pos);
+    if(atQuery.length > 12){ closeAtBox(); return; }
+    renderAtBox(atQuery);
+  }
+
+  function pickAt(m){
+    var v = inp.value, pos = inp.selectionStart;
+    if(typeof pos !== 'number') pos = v.length;
+    var at = v.lastIndexOf('@', pos - 1);
+    if(at < 0) at = pos;
+    var head = v.slice(0, at);
+    var tail = v.slice(pos);
+    var ins = '@' + m.nickname + ' ';
+    inp.value = head + ins + tail;
+    var np = (head + ins).length;
+    try{ inp.selectionStart = inp.selectionEnd = np; }catch(e){}
+    closeAtBox();
+    autoGrow(); refreshSend();
+  }
+
+  function insertAtSign(){
+    if(!inp) return;
+    var v = inp.value, pos = inp.selectionStart;
+    if(typeof pos !== 'number') pos = v.length;
+    inp.value = v.slice(0, pos) + '@' + v.slice(pos);
+    try{ inp.selectionStart = inp.selectionEnd = pos + 1; }catch(e){}
+    autoGrow(); refreshSend(); onAtInput();
+  }
+
+  /* 从文本里反推被 @ 的人：按「@昵称」精确命中，避免把「@」后随便打的字当成提及 */
+  function extractMentions(text){
+    if(!S.cur || S.cur.ctype !== 'group') return null;
+    if(S.mentionsOff) return null;
+    text = String(text || '');
+    if(text.indexOf('@') < 0) return null;
+    var ids = [];
+    gMembers.forEach(function(m){
+      if(m.is_me) return;
+      if(m.nickname && text.indexOf('@' + m.nickname) > -1) ids.push(m.user_id);
+    });
+    return ids.length ? ids : null;
+  }
+
+  /* 文本气泡渲染：把 @昵称 包成 span，其余一律走文本节点（不用 innerHTML，避免注入） */
+  function renderRichText(container, text, mentions){
+    text = String(text == null ? '' : text);
+    if(!mentions || !mentions.length){ container.textContent = text; return; }
+    var names = [];
+    mentions.forEach(function(uid){
+      var m = memberOf(uid);
+      if(m && m.nickname) names.push(m.nickname);
+    });
+    if(!names.length){ container.textContent = text; return; }
+    /* 长名字优先，否则「@张三丰」会被「@张三」先切走 */
+    names.sort(function(a, b){ return b.length - a.length; });
+    var esc = names.map(function(n){ return n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
+    var re = new RegExp('@(' + esc.join('|') + ')', 'g');
+    var last = 0, mt;
+    while((mt = re.exec(text))){
+      if(mt.index > last) container.appendChild(document.createTextNode(text.slice(last, mt.index)));
+      container.appendChild(el('span', 'mention', '@' + mt[1]));
+      last = mt.index + mt[0].length;
+    }
+    if(last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
+  }
+
+  /* 成员信息晚到时的补救：缓存先渲染、成员后到，把昵称和头像补上 */
+  function refreshSenders(){
+    if(!S.cur || S.cur.ctype !== 'group' || !msgsBox) return;
+    var nodes = msgsBox.querySelectorAll('.msg.in[data-sender]');
+    for(var i = 0; i < nodes.length; i++){
+      var n = nodes[i], gm = memberOf(n.dataset.sender);
+      if(!gm) continue;
+      var col = n.querySelector('.col');
+      if(col && !col.querySelector('.msender')){
+        col.insertBefore(el('div', 'msender', gm.nickname), col.firstChild);
+      }
+      var img = n.querySelector('img.a');
+      if(img){
+        var k = pickKey(gm.gavatar || 'ava_cat');
+        if(img.getAttribute('data-k') !== k) img.setAttribute('data-k', k);
+      }
+    }
+    fillImgIn(msgsBox);
+  }
+
   function convMenu(c){
     var items = [];
     items.push({
@@ -1963,7 +2581,21 @@
   function openConv(c){
     S.cur = c;
     S.lastId = 0; S.ids = {}; S.lastAt = null; S.lastShownAt = 0;
-    $('#chatTitle').textContent = convName(c);
+    var isGroup = (c && c.ctype === 'group');
+    /* 群聊标题带人数，跟微信一致；单聊只有名字 */
+    $('#chatTitle').textContent = isGroup
+      ? (convName(c) + (c.members ? '（' + c.members + '）' : ''))
+      : convName(c);
+    $('#chatTitle').style.cursor = isGroup ? 'pointer' : '';
+    if(isGroup){
+      gMembers = [];
+      loadGroupMembers(c.id).then(refreshSenders);
+    }else{
+      gMembers = [];
+    }
+    closeAtBox();
+    var atBtn = $('#btnAt');
+    if(atBtn) atBtn.style.display = isGroup ? 'flex' : 'none';
     /* 命中内存缓存 → 同步渲染出来，用户立刻看到内容，不经过「加载中…」 */
     var cache = c && S.msgCache[c.id];
     var hit = !!(cache && cache.rows.length);
@@ -1983,6 +2615,7 @@
       startChatPoll();
       renderConvs();
       markRead();
+      if(isGroup) loadGroupMembers(c.id).then(refreshSenders);
       /* 后台静默补拉：只取比缓存新的消息，不清屏、不闪，失败也不打扰用户 */
       return fetchMessages(false).then(function(rows){
         if(rows && rows.length){ scrollBottom(); markRead(); }
@@ -2253,6 +2886,13 @@
 
   function back(){
     stopChatPoll();
+    /* 这两个页面的「返回」是层级返回，不是回 tab：群信息回聊天（要不聊天轮询就断了） */
+    if(S.screen === 'groupcreate'){ goScreen('grouplist'); return; }
+    if(S.screen === 'groupinfo'){
+      goScreen('chatdetail');
+      if(S.cur) startChatPoll();
+      return;
+    }
     var wasChat = (S.screen === 'chatdetail');
     /* 关键：返回是纯本地动作，绝不能被网络拖住。
        以前这里 `markRead().then(切屏)`，一旦那个 PATCH 在弱网 / 请求挂起时不返回，
@@ -2324,7 +2964,7 @@
   }
 
   if(inp){
-    inp.addEventListener('input', function(){ autoGrow(); refreshSend(); });
+    inp.addEventListener('input', function(){ autoGrow(); refreshSend(); onAtInput(); });
     inp.addEventListener('focus', function(){
       setTimeout(scrollBottom, 320);
       setTimeout(vvFit, 320); setTimeout(vvFit, 680);
@@ -2430,6 +3070,26 @@
       if(!S.cur){ toast('先选一个聊天'); return; }
       filePick.click();
     });
+    /* ---- 群聊入口与操作（P2-5） ---- */
+    var cellGroups = $('#cellGroups');
+    if(cellGroups) cellGroups.addEventListener('click', function(){ openGroupList(); });
+    var btnNewGroup = $('#btnNewGroup');
+    if(btnNewGroup) btnNewGroup.addEventListener('click', function(){ openGroupCreate('create'); });
+    var btnCreateGroup = $('#btnCreateGroup');
+    if(btnCreateGroup) btnCreateGroup.addEventListener('click', function(){ doCreateGroup(); });
+    var btnGroupAdd = $('#btnGroupAdd');
+    if(btnGroupAdd) btnGroupAdd.addEventListener('click', function(){ openGroupCreate('invite'); });
+    var btnLeaveGroup = $('#btnLeaveGroup');
+    if(btnLeaveGroup) btnLeaveGroup.addEventListener('click', function(){ doLeaveGroup(); });
+    var cellRename = $('#cellRenameGroup');
+    if(cellRename) cellRename.addEventListener('click', function(){ doRenameGroup(); });
+    var btnAt = $('#btnAt');
+    if(btnAt) btnAt.addEventListener('click', function(){ insertAtSign(); });
+    var chatTitle = $('#chatTitle');
+    if(chatTitle) chatTitle.addEventListener('click', function(){
+      if(S.cur && S.cur.ctype === 'group') openGroupInfo();
+    });
+
     var emoBtn = $('#btnEmoji');
     if(emoBtn) emoBtn.addEventListener('click', function(){ toggleEmo(); });
     if(inp) inp.addEventListener('focus', function(){ toggleEmo(false); });
@@ -2767,7 +3427,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.14:11';
+    var BUILD='1029.14:51';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
