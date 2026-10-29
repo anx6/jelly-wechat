@@ -692,6 +692,8 @@
   /* 说明文字 + 原生时间输入（原生控件在手机上体验最好，只把外观压成 .mv 的样子） */
   /* pre-line 是必须的：说明文案里用 \n 分段，不加就会连成一大段 */
   .hint{padding:8px 18px 22px;font-size:11.5px;line-height:1.8;color:var(--dim);font-weight:700;white-space:pre-line;}
+  .hint.warn{color:#c01b5e;white-space:pre-line;padding-bottom:8px;}
+  html.dark .hint.warn{color:#ff8ab8;}
   .tin{border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:800;color:var(--dim);text-align:right;padding:0;width:76px;-webkit-appearance:none;appearance:none;}
   .tin::-webkit-calendar-picker-indicator{opacity:.45;}
 
@@ -759,7 +761,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1029.20:52';
+window.__BUILD = '1029.21:21';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -797,7 +799,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.20:52</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.21:21</div>
         </div>
       </div>
     </section>
@@ -1255,6 +1257,7 @@ try{
           <div class="cell" id="setFont"><div class="chip" style="background:var(--sky)">🔤</div><div class="nm">字体大小</div><div class="mv" id="setFontVal">标准</div><div class="chev">›</div></div>
           <div class="cell" id="setChatBg"><div class="chip" style="background:var(--lime)">🎨</div><div class="nm">聊天背景</div><div class="mv" id="setChatBgVal">默认</div><div class="chev">›</div></div>
           <div class="cell" id="setStorage"><div class="chip" style="background:var(--sky)">💾</div><div class="nm">存储空间</div><div class="mv" id="setStorageVal">计算中…</div><div class="chev">›</div></div>
+          <div class="cell" id="setMigrate"><div class="chip" style="background:var(--yellow)">📦</div><div class="nm">聊天记录迁移</div><div class="mv" id="setMigrateVal">-</div><div class="chev">›</div></div>
           <div class="cell" id="setDiscover"><div class="chip" style="background:var(--purple)">🧭</div><div class="nm">发现页管理</div><div class="chev">›</div></div>
         </div>
 
@@ -1267,7 +1270,42 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.20:52</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.21:21</div>
+      </div>
+    </section>
+
+    <!-- ================= 聊天记录迁移（P3-11 / FR-810） =================
+         这个页面的口径必须老实：存档是「本机副本」，不是云备份。
+         所以顶部两格的右值分别是「X 个会话 / 已导入 X 个」而不是「已备份」。 -->
+    <section class="screen" data-screen="migrate">
+      <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">聊天记录迁移</div>
+        <div style="width:38px;flex-shrink:0;"></div>
+      </div>
+      <div class="body">
+        <div class="hint" id="mgHint"></div>
+        <div class="card" style="margin-top:10px">
+          <div class="cell" id="mgExport">
+            <div class="chip" style="background:var(--lime)">⬇️</div>
+            <div class="nm">导出聊天记录</div>
+            <div class="mv" id="mgExportVal">暂无会话</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="cell" id="mgImport">
+            <div class="chip" style="background:var(--sky)">⬆️</div>
+            <div class="nm">导入聊天记录</div>
+            <div class="mv" id="mgImportVal">选择 JSON 文件</div>
+            <div class="chev">›</div>
+          </div>
+          <!-- 真正的文件选择用原生 input，藏起来，点格子时手动 trigger。
+               accept 只收 json，避免用户错选了一堆照片。 -->
+          <input type="file" id="mgFile" accept="application/json,.json" style="display:none">
+        </div>
+        <div class="setgrp">本机存档</div>
+        <div class="card" id="mgList"></div>
+        <div class="hint warn" id="mgLast" style="display:none"></div>
+        <div class="hint" id="mgFoot"></div>
       </div>
     </section>
 
@@ -1427,7 +1465,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.20:52</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.21:21</div>
       </div>
     </section>
 
@@ -1603,6 +1641,12 @@ try{
     gJoin: null,          /* 当前群的入群设置 { need, canReview, pending } */
     joinReqs: [],         /* 待审核的入群申请 */
     joinBusy: false,      /* 审核中，防连点重复提交 */
+    /* ---- 聊天记录迁移（FR-810）---- */
+    archBusy: false,      /* 导出/导入进行中，防重复触发 */
+    archProg: '',         /* 进度文案（导出时逐会话更新） */
+    archMeta: null,       /* 本机存档索引 { v, uid, at, convs: [{id,title,ctype,n,b}] } */
+    archRows: {},         /* cid -> 已从 localStorage 读出的分片消息（只在本次会话内缓存） */
+    archLast: null,       /* 最近一次导入结果 { ok, convs, msgs, skip }，页面用来显示回执 */
     momentUnread: 0,      /* 「发现」红点数字 */
     momentReadAt: 0,      /* 本地刚点过已读的时间戳（15 秒内压住服务端旧数字，防回闪） */
     momentRange: 'all',   /* 我的可见期设置 */
@@ -1923,6 +1967,82 @@ try{
   }
   function unhideAllEmos(){ setHiddenEmos([]); }
 
+  /* ---------------- 聊天记录存档（FR-810） ----------------
+     存档拆成「一个会话一个 key」（jw_arch_m:<cid>）+ 一份索引（jw_arch）。
+     不用单一大 key 的三个理由：
+       ① 单 key 一旦超配额，整次导入全废；分片时前面的会话已经落地了；
+       ② 删单个会话只需 removeItem 一片，不必反序列化再写回整个大 JSON；
+       ③ 聊天页取某个会话的「更早历史」只读一片，不会把所有会话都解析一遍。
+
+     容量按「尽力而为」处理：localStorage 通常 5MB，全量聊天很容易超。
+     超了要让用户看到「存了几个会话、哪几个没存下」，绝不能静默丢弃 ——
+     用户以为备份成功、换机后才发现只剩一半，那是最坏的结果。 */
+  var ARCH_IDX = 'jw_arch', ARCH_PRE = 'jw_arch_m:';
+
+  function archMetaLoad(){
+    if(S.archMeta) return S.archMeta;
+    var o = null;
+    try{ o = JSON.parse(store(ARCH_IDX) || 'null'); }catch(e){ o = null; }
+    if(!o || typeof o !== 'object' || !Array.isArray(o.convs)){
+      o = { v: 1, uid: '', at: 0, convs: [] };
+    }
+    S.archMeta = o;
+    return o;
+  }
+
+  function archMetaSave(o){
+    S.archMeta = o || { v: 1, uid: '', at: 0, convs: [] };
+    try{ store(ARCH_IDX, JSON.stringify(S.archMeta)); }catch(e){}
+  }
+
+  /* 读一片存档消息。读不到就当没存档 —— 配额满时跳过写入、用户清了浏览器数据、
+     存档被别的标签页删掉，这三种情况都不该让聊天页报错。 */
+  function archShard(cid){
+    if(!cid) return [];
+    if(S.archRows[cid]) return S.archRows[cid];
+    var arr = null;
+    try{ arr = JSON.parse(store(ARCH_PRE + cid) || 'null'); }catch(e){ arr = null; }
+    if(!Array.isArray(arr)) arr = [];
+    S.archRows[cid] = arr;
+    return arr;
+  }
+
+  /* 写一片。返回 false 表示超配额 —— 调用方必须把它统计进「没存下的会话」。 */
+  function archShardPut(cid, msgs){
+    if(!cid) return false;
+    var s = '';
+    try{ s = JSON.stringify(msgs || []); }catch(e){ return false; }
+    try{
+      localStorage.setItem(ARCH_PRE + cid, s);
+      S.archRows[cid] = msgs || [];
+      return true;
+    }catch(e){ return false; }
+  }
+
+  function archShardDel(cid){
+    unstore(ARCH_PRE + cid);
+    delete S.archRows[cid];
+    var m = archMetaLoad();
+    m.convs = (m.convs || []).filter(function(c){ return c.id !== cid; });
+    archMetaSave(m);
+  }
+
+  function archClearAll(){
+    /* 先按索引删，再按前缀扫一遍兜底：写到一半崩溃时索引会漏记录，
+       只按索引删会留下永远删不掉的孤儿分片，白占配额。 */
+    try{
+      (archMetaLoad().convs || []).forEach(function(c){ unstore(ARCH_PRE + c.id); });
+      var drop = [];
+      for(var i = 0; i < localStorage.length; i++){
+        var k = localStorage.key(i);
+        if(k && k.indexOf(ARCH_PRE) === 0) drop.push(k);
+      }
+      drop.forEach(function(k){ unstore(k); });
+    }catch(e){}
+    archMetaSave({ v: 1, uid: '', at: 0, convs: [] });
+    S.archRows = {};
+  }
+
 /* =====================================================================
    果冻微信 · API
    网络层：api() 通用请求 + 所有 RPC 数据访问
@@ -2137,6 +2257,9 @@ try{
       : '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + S.cur.id + '&id=gt.' + S.lastId + '&order=id.asc&limit=100';
     return api(q).then(function(rows){
       rows = rows || [];
+      /* P3-11 聊天记录迁移：本机存档里比服务器已知历史更早的消息，
+         渲染时接在最前面（archHead）。声明在 if 外面，initial 块内外都要用。 */
+      var archHead = [];
       /* FR-806：直聊里被我拉黑的人的新消息不显示（拉黑之前的历史保留）。
          必须在这里过滤而不是渲染时过滤 —— 下面还要写进会话缓存和 S.lastId，
          在渲染层挡的话这些消息仍会被缓存，下次进会话又从缓存里冒出来。 */
@@ -2160,11 +2283,28 @@ try{
         });
         msgsBox.innerHTML = '';
         S.lastId = 0; S.ids = {}; S.lastShownAt = 0;
-        if(!rows.length && !keptTail.length && !Object.keys(keptMap).length){
+        /* P3-11：rows 已 reverse 成升序，rows[0] 是服务器窗里最小 id。
+           archBefore 只取 id < 该值的最近 50 条，避免一次性把几万条老消息全塞进 DOM。
+           没服务器行（会话被清空但本机有存档）时不算 archHead，
+           否则 minRowId 取 null 会把整份存档都拉出来。 */
+        if(rows.length){
+          archHead = archShard(S.cur && S.cur.id ? S.cur.id : null);
+          archHead = archBefore(archHead, Number(rows[0].id), 50);
+        }
+        if(!rows.length && !archHead.length && !keptTail.length && !Object.keys(keptMap).length){
           msgsBox.appendChild(el('div', 'time', '还没有消息，说句话打破沉默吧 ✧'));
         }
       }
       var added = 0;
+      /* P3-11：存档老消息先渲染（顶在最前），随后服务器行 append，自然接上。
+         不写进会话缓存 —— 它们本就是服务器真实消息，缓存每次 initial 都从服务器重建，
+         混进去只会让「会话缓存」的语义变脏。 */
+      if(initial && archHead.length){
+        archHead.forEach(function(m){
+          var n = addMsg(m, false, false);
+          if(n) added++;
+        });
+      }
       /* 写入会话缓存（只存服务端已确认的消息，供下次进会话秒开） */
       if(S.cur && S.cur.id){
         rows.forEach(function(m){ cachePut(S.cur.id, m); });
@@ -2807,6 +2947,46 @@ try{
     if(S.noJoin || !cid) return Promise.resolve();
     return api('/rest/v1/rpc/cancel_join_request', { method: 'POST', body: { p_conv: cid } })
       .catch(function(e){ if(_joinGone(e)) S.noJoin = true; throw e; });
+  }
+
+  /* ---------------- P3-11 聊天记录迁移（FR-810） ---------------- */
+
+  /* 把一个会话的消息整段拉下来，给「导出聊天记录」用。
+     翻页用 id 游标（id=gt.<上一页最后一条>）而不是 offset：
+     导出过程中如果有人正在发消息，offset 会让整页错位、漏掉几行；
+     id 游标只会多拉到更新的消息，永远不漏。
+     三个停止条件：翻不满一页（到底了）/ 到了条数上限 / 200 页兜底 ——
+     最后一条是防服务端异常时游标不前进导致死循环。 */
+  function fetchAllMsgs(cid, cap, onTick){
+    cap = Number(cap) || 20000;
+    var out = [], last = 0, page = 1000, guard = 0;
+    var selBase = 'id,sender_id,content,created_at,msg_type,client_msg_id,deleted_at';
+
+    function step(){
+      var sel = S.noMentions ? selBase : (selBase + ',mentions');
+      var q = '/rest/v1/messages?select=' + sel + '&conversation_id=eq.' + cid
+        + (last ? '&id=gt.' + last : '') + '&order=id.asc&limit=' + page;
+      return api(q).then(function(rows){
+        rows = rows || [];
+        if(!rows.length) return out;
+        rows.forEach(function(r){ out.push(r); });
+        last = rows[rows.length - 1].id;
+        guard++;
+        if(onTick) onTick(out.length);
+        if(rows.length < page || out.length >= cap || guard >= 200) return out;
+        return step();
+      }, function(e){
+        /* 老库没有 mentions 列：这一整页会 400，而不是只少一列。
+           命中一次就把开关锁死并整段重来 —— 重来只是多拉一页，比因为
+           一个可选列让「导出」直接失败要好。 */
+        if(!S.noMentions && /mentions/i.test(String((e && e.message) || ''))){
+          S.noMentions = true;
+          return fetchAllMsgs(cid, cap, onTick);
+        }
+        throw e;
+      });
+    }
+    return step();
   }
 
 /* =====================================================================
@@ -3791,6 +3971,98 @@ try{
     key = String(key == null ? '' : key).trim();
     if(!key) return '';
     return kind === 'group' ? ('jellygroup:' + key) : ('jelly:' + key);
+  }
+
+  /* ================= 聊天记录迁移（FR-810） =================
+     导出的是「可读存档」而不是内部缓存：字段名与服务端返回保持一致，
+     导入后可以直接喂给 addMsg，不必再写一层字段转换。
+     转换层是这类功能最容易出错的地方（snake_case 与 camelCase 各写一遍，
+     半年后改了一个忘了另一个），所以宁可让存档文件里多带几个内部字段。 */
+
+  var ARCH_APP = 'jelly-wechat', ARCH_V = 1;
+
+  /* 文件名里不能出现这些字符（Windows 上 \ / : * ? " < > | 全部禁止），
+     顺便压掉换行与控制字符 —— 群名可能带 emoji 和首尾空格。 */
+  function archSafeName(s){
+    return String(s == null ? '' : s)
+      .replace(/[\\/:*?"<>|\r\n\t]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 24) || '聊天记录';
+  }
+
+  function archFileName(nick, at){
+    var d = new Date(at || Date.now());
+    function p(n){ return ('0' + n).slice(-2); }
+    return '果冻微信-' + archSafeName(nick) + '-'
+      + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-'
+      + p(d.getHours()) + p(d.getMinutes()) + '.json';
+  }
+
+  /* 统计一份存档的体量。bytes 用 UTF-8 算（与存储空间页同一口径），
+     否则中文消息的占用会被报成实际的三分之一。 */
+  function archStat(convs){
+    var out = { convs: 0, msgs: 0, bytes: 0 };
+    (convs || []).forEach(function(c){
+      if(!c) return;
+      var ms = Array.isArray(c.msgs) ? c.msgs : [];
+      out.convs++;
+      out.msgs += ms.length;
+      out.bytes += c.b || utf8Bytes(JSON.stringify(ms));
+    });
+    return out;
+  }
+
+  /* 导入前校验。返回中文原话而不是错误码 —— 这条信息要直接显示给用户。
+     「仅同账号」不只是合规话术：存档里的消息 id 是服务端自增序列，
+     跨账号导入后这些 id 会和另一个账号的消息撞上，渲染时按 id 去重会直接吞消息。 */
+  function archCheck(obj, myId){
+    if(!obj || typeof obj !== 'object') return { ok: false, msg: '这不是一个有效的存档文件' };
+    if(obj.app !== ARCH_APP) return { ok: false, msg: '这个文件不是果冻微信导出的聊天记录' };
+    var v = Number(obj.v) || 0;
+    if(v < 1 || v > ARCH_V) return { ok: false, msg: '存档格式版本不认识（v' + obj.v + '）' };
+    if(!Array.isArray(obj.convs)) return { ok: false, msg: '存档里没有会话数据，文件可能损坏了' };
+    if(!obj.uid) return { ok: false, msg: '存档里没有账号信息，无法确认归属' };
+    if(myId && obj.uid !== myId){
+      return { ok: false, msg: '这份存档属于另一个账号（' + (obj.nick || '未知') + '），只能导入自己的账号' };
+    }
+    var clean = [], skip = 0;
+    obj.convs.forEach(function(c){
+      if(!c || !c.id || !Array.isArray(c.msgs)){ skip++; return; }
+      clean.push(c);
+    });
+    if(!clean.length) return { ok: false, msg: '存档里能用的会话是 0 个' };
+    return { ok: true, msg: skip ? ('读取 ' + clean.length + ' 个会话，跳过 ' + skip + ' 个损坏条目') : '', convs: clean };
+  }
+
+  /* 取存档里「比 maxId 更早」的最后 n 条，用来补在首屏消息前面。
+     按 id 而不是 created_at 判断先后：id 是服务端自增序列，同一会话内严格单调；
+     created_at 会因客户端时钟漂移出现并列甚至倒序，拿它比较会漏消息或排错。
+     maxId 传 null 表示线上一条都没有（会话被清空），整份存档都能用。 */
+  function archBefore(msgs, maxId, n){
+    var lim = Number(n) || 0;
+    var out = [];
+    (msgs || []).forEach(function(m){
+      if(!m || !m.id) return;
+      if(maxId != null && Number(m.id) >= Number(maxId)) return;
+      out.push(m);
+    });
+    out.sort(function(a, b){ return Number(a.id) - Number(b.id); });
+    return lim > 0 ? out.slice(Math.max(0, out.length - lim)) : out;
+  }
+
+  /* 同 id 去重 + 按 id 升序。导入时同一份文件里可能有重复会话，
+     分片写入前必须先收敛，否则存档里每条消息都存两份。 */
+  function archDedupe(msgs){
+    var seen = {}, out = [];
+    (msgs || []).forEach(function(m){
+      if(!m || !m.id) return;
+      var k = String(m.id);
+      if(seen[k]) return;
+      seen[k] = 1; out.push(m);
+    });
+    out.sort(function(a, b){ return Number(a.id) - Number(b.id); });
+    return out;
   }
 
 /* =====================================================================
@@ -6170,6 +6442,86 @@ try{
     box.appendChild(rf);
   }
 
+  /* ---------------- 聊天记录迁移（P3-11 / FR-810） ----------------
+     这个页面的口径必须老实：存档是「本机副本」，不是云备份。
+     用户最容易被误导成「点了导出就等于数据安全了」，
+     所以导出的右值写的是会话数、底部说明写清「不含原图原文件」与「5 MB 上限」。 */
+  function renderMigrate(){
+    var meta = archMetaLoad();
+    var st = archStat(meta.convs);
+    var total = (S.convs && S.convs.length) || 0;
+
+    var ev = $('#mgExportVal');
+    if(ev){
+      /* 导出中把右值当进度条用 —— 多会话导出要好几秒，
+         期间没有任何反馈的话用户会以为卡死，然后连点。 */
+      ev.textContent = S.archBusy
+        ? (S.archProg || '准备中…')
+        : (total ? (total + ' 个会话') : '暂无会话');
+    }
+    var iv = $('#mgImportVal');
+    if(iv){
+      iv.textContent = st.convs ? ('已导入 ' + st.convs + ' 个') : '选择 JSON 文件';
+    }
+
+    var head = $('#mgHint');
+    if(head){
+      head.textContent =
+        '导出会生成一个 JSON 文件，包含会话列表与消息文字，\n'
+        + '图片和语音只记链接，不含原文件。\n'
+        + '存档只能导入自己的账号，别人的存档会被拒绝。';
+    }
+
+    var box = $('#mgList');
+    if(box){
+      box.innerHTML = '';
+      if(!st.convs){
+        var empty = el('div', 'dempty');
+        empty.appendChild(el('div', 'eico', '📦'));
+        empty.appendChild(el('div', 'etitle', '本机还没有存档'));
+        empty.appendChild(el('div', 'esub',
+          '导出后在另一台设备用同一个账号导入即可。'));
+        box.appendChild(empty);
+      }else{
+        meta.convs.forEach(function(c){
+          var row = el('div', 'ccell');
+          row.setAttribute('data-arch', c.id);
+          var ava = el('div', 'ava');
+          ava.appendChild(el('div', 'archico', c.ctype === 'group' ? '👥' : '💬'));
+          row.appendChild(ava);
+          var mid = el('div', 'mid');
+          mid.appendChild(el('div', 'nm', c.title || '未命名会话'));
+          mid.appendChild(el('div', 'archsub',
+            (c.n || 0) + ' 条 · ' + fmtBytes(c.b || 0)));
+          row.appendChild(mid);
+          var btn = el('button', 'minibtn', '删除');
+          btn.type = 'button';
+          btn.setAttribute('data-archdel', c.id);
+          row.appendChild(btn);
+          box.appendChild(row);
+        });
+      }
+    }
+
+    var last = $('#mgLast');
+    if(last){
+      var r = S.archLast;
+      last.style.display = r ? '' : 'none';
+      if(r){
+        last.textContent = r.msg || '';
+        last.classList.toggle('warn', !r.ok);
+      }
+    }
+
+    var foot = $('#mgFoot');
+    if(foot){
+      foot.textContent =
+        '存档只是本机副本，不会修改服务端数据。\n'
+        + '导入后进入对应会话，存档里的早期消息会自动接在已知历史前面。\n'
+        + '浏览器本地空间通常只有 5 MB，超出的会话会存不下，以导入结果为准。';
+    }
+  }
+
 /* =====================================================================
    果冻微信 · APP
    业务流转 + 事件绑定 + 轮询 + 启动
@@ -6852,6 +7204,7 @@ try{
     if(name === 'settings') renderSettings();
     if(name === 'coverpick') renderCoverPick();
     if(name === 'qrcode') renderQrPage();
+    if(name === 'migrate') renderMigrate();
     var b = $('.screen.active .body'); if(b) b.scrollTop = 0;
   }
 
@@ -6909,6 +7262,12 @@ try{
        不能落到下面的 setTab(backTo) —— backTo 存的是 'settings'，
        它不是 tab key，setTab 会静默失败，用户点了返回毫无反应。 */
     if(S.screen === 'notify' || S.screen === 'storage' || S.screen === 'discovermgr' || S.screen === 'about'){
+      goScreen('settings');
+      renderSettings();
+      return;
+    }
+    /* 聊天记录迁移页是设置的子页：返回到设置本身，不落到下面的 setTab(backTo) */
+    if(S.screen === 'migrate'){
       goScreen('settings');
       renderSettings();
       return;
@@ -7652,9 +8011,25 @@ try{
 
   bind('#setStorage', 'click', openStorage);
 
+  bind('#setMigrate', 'click', openMigrate);
+
   bind('#setDiscover', 'click', openDiscoverMgr);
 
   bind('#setAbout', 'click', openAbout);
+
+  /* ---------------- P3-11：聊天记录迁移（FR-810） ---------------- */
+  bind('#mgExport', 'click', doArchiveExport);
+  bind('#mgImport', 'click', function(){ var f = $('#mgFile'); if(f) f.click(); });
+  bind('#mgFile', 'change', function(e){
+    var f = e.target && e.target.files && e.target.files[0];
+    if(f) doArchiveImport(f);
+    e.target.value = '';   /* 同一个文件选两次不会触发 change，清空后下次还能选 */
+  });
+  /* 删除单条存档用事件委托：列表是每次 renderMigrate 重建的 */
+  bind('#mgList', 'click', function(e){
+    var n = e.target && e.target.closest ? e.target.closest('[data-archdel]') : null;
+    if(n) doArchDel(n.getAttribute('data-archdel'));
+  });
 
   /* ---------------- 隐私与黑名单（FR-806） ---------------- */
   bind('#setAddMode', 'click', openAddMode);
@@ -8101,6 +8476,137 @@ try{
   function openAbout(){
     goPage('about', 'settings');
     renderAbout();
+  }
+
+  /* ---------------- P3-11：聊天记录迁移（FR-810） ---------------- */
+
+  function openMigrate(){
+    goPage('migrate', 'settings');
+    renderMigrate();
+  }
+
+  /* 把一个会话的存档信息 upsert 进 meta.convs（去重按 id）。
+     meta.convs 只存摘要 {id,title,ctype,n,b}，消息本体在各自的 shard 里。 */
+  function archMetaUpsert(conv){
+    var m = archMetaLoad();
+    /* 每次写入都对齐账号与时间：存档属于当前登录用户，导入/导出时都要落上，
+       不然后面查 meta.uid 会是空串（C7 曾经踩过）。 */
+    m.uid = (S.me && S.me.id) || m.uid || '';
+    if(!m.at) m.at = Date.now();
+    var hit = null;
+    (m.convs || []).forEach(function(c){ if(c.id === conv.id) hit = c; });
+    if(hit){ hit.title = conv.title; hit.ctype = conv.ctype; hit.n = conv.n; hit.b = conv.b; }
+    else { (m.convs || (m.convs = [])).push(conv); }
+    archMetaSave(m);
+  }
+
+  /* 导出：每个会话从服务器整段拉消息 → 写一份 JSON 文件下载 +
+     把本机存档（shard + 索引）也更新一遍。两者独立：
+     下载文件不受 5MB 配额限制，本地副本受。所以「文件成功、本地副本部分失败」
+     是诚实的结果，绝不能假装全部成功。 */
+  function doArchiveExport(){
+    if(S.archBusy) return;
+    var convs = (S.convs || []).filter(function(c){ return c && c.id; });
+    if(!convs.length){ toast('没有可导出的会话'); return; }
+    S.archBusy = true;
+    S.archProg = '准备中…';
+    renderMigrate();
+
+    var archive = { app: 'jelly-wechat', v: 1, uid: (S.me && S.me.id) || '',
+                   nick: (S.me && S.me.nickname) || '我', at: Date.now(), convs: [] };
+    var saved = [];        /* 成功写入本机 shard 的会话 id */
+    var total = convs.length, done = 0;
+
+    function step(i){
+      if(i >= total){
+        /* 本地写索引：只收录成功落盘的会话 */
+        saved.forEach(function(cid){
+          var c = convs.find(function(x){ return x.id === cid; });
+          /* 摘要里 n/b 从 shard 重新算，保证和文件里一致 */
+          var ms = archShard(cid);
+          archMetaUpsert({ id: cid, title: c.title || '未命名', ctype: c.ctype,
+                           n: ms.length, b: utf8Bytes(JSON.stringify(ms)) });
+        });
+        /* 下载文件（与本地副本无关，照常导出全部会话） */
+        var blob = new Blob([JSON.stringify(archive)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = archFileName(archive.nick, archive.at);
+        document.body.appendChild(a); a.click();
+        setTimeout(function(){ try{ document.body.removeChild(a); URL.revokeObjectURL(url); }catch(e){} }, 4000);
+
+        S.archBusy = false; S.archProg = '';
+        var failed = total - saved.length;
+        S.archLast = { ok: failed === 0, msg: failed === 0
+          ? ('已导出 ' + total + ' 个会话到文件，本机副本同步完成')
+          : ('已导出 ' + total + ' 个会话到文件；本机副本因空间不足只保存了 ' + saved.length + ' 个（' + failed + ' 个未保存）') };
+        renderMigrate();
+        toast(S.archLast.msg);
+        return;
+      }
+      var c = convs[i];
+      S.archProg = '正在导出：' + (c.title || '未命名') + ' (' + (i + 1) + '/' + total + ')';
+      renderMigrate();
+      fetchAllMsgs(c.id, 20000).then(function(msgs){
+        var obj = { id: c.id, title: c.title || '未命名', ctype: c.ctype,
+                    n: msgs.length, b: utf8Bytes(JSON.stringify(msgs)), msgs: msgs };
+        archive.convs.push(obj);
+        /* 本地副本：写 shard，失败就记进 saved 之外 */
+        if(archShardPut(c.id, msgs)) saved.push(c.id);
+        done++;
+        step(i + 1);
+      }, function(e){
+        /* 单个会话拉取失败：文件里就不带它，但不阻断其余会话 */
+        done++;
+        step(i + 1);
+      });
+    }
+    step(0);
+  }
+
+  /* 导入：读 JSON 文件 → 校验（仅同账号）→ 写本机 shard + 索引。
+     不碰服务器，所以是纯本机副本。下次进对应会话，存档里的早期消息会自动接上。 */
+  function doArchiveImport(file){
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      var obj = null;
+      try{ obj = JSON.parse(String(reader.result || '')); }
+      catch(e){ obj = null; }
+      var chk = archCheck(obj, (S.me && S.me.id) || '');
+      if(!chk.ok){
+        S.archLast = { ok: false, msg: chk.msg };
+        renderMigrate(); toast(chk.msg);
+        return;
+      }
+      var kept = 0, fail = 0, skipDup = 0;
+      chk.convs.forEach(function(c){
+        var msgs = archDedupe(c.msgs);
+        if(archShardPut(c.id, msgs)){
+          archMetaUpsert({ id: c.id, title: c.title || '未命名', ctype: c.ctype,
+                           n: msgs.length, b: utf8Bytes(JSON.stringify(msgs)) });
+          kept++;
+        }else{ fail++; }
+      });
+      S.archLast = { ok: fail === 0, msg: fail === 0
+        ? ('已导入 ' + kept + ' 个会话到本机（' + (chk.msg || '') + '）')
+        : ('已导入 ' + kept + ' 个，' + fail + ' 个因空间不足未保存') };
+      renderMigrate();
+      toast(S.archLast.msg);
+    };
+    reader.onerror = function(){
+      S.archLast = { ok: false, msg: '文件读不出来，可能是损坏或被占用了' };
+      renderMigrate(); toast(S.archLast.msg);
+    };
+    reader.readAsText(file);
+  }
+
+  /* 删除单条本机存档：删 shard + 从索引移除，列表即时刷新 */
+  function doArchDel(cid){
+    if(!cid) return;
+    archShardDel(cid);
+    S.archLast = { ok: true, msg: '已删除该会话的本机存档' };
+    renderMigrate();
   }
 
   function togglePref(k){
@@ -8603,7 +9109,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.20:52';
+    var BUILD='1029.21:21';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
