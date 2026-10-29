@@ -587,7 +587,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.18:38</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.18:46</div>
         </div>
       </div>
     </section>
@@ -948,7 +948,7 @@ try{
         <div class="card">
           <div class="cell" id="setClearCache"><div class="chip" style="background:var(--lime)">🧹</div><div class="nm">清除本地缓存</div><div class="mv">聊天记录缓存</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.18:38</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.18:46</div>
       </div>
     </section>
 
@@ -979,7 +979,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.18:38</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.18:46</div>
       </div>
     </section>
 
@@ -1088,6 +1088,7 @@ try{
     momentRange: 'all',   /* 我的可见期设置 */
     momentCover: '',      /* 我的相册封面 URL */
     momentCoverBlob: null,/* 换封面上传中 */
+    coverFrom: 'settings',/* 封面选择页是从哪儿进的：settings / moments（决定返回去哪） */
     /* ---- 主题（P3-4）---- */
     theme: 'auto',        /* auto / light / dark */
     /* ---- 语音（P3-3）---- */
@@ -4350,7 +4351,11 @@ try{
       renderMomentHead();
       return;
     }
-    if(S.screen === 'coverpick'){ S.screen = 'settings'; goScreen('settings'); renderSettings(); return; }
+    if(S.screen === 'coverpick'){
+      if(S.coverFrom === 'moments'){ goScreen('moments'); renderMomentHead(); }
+      else { goScreen('settings'); renderSettings(); }
+      return;
+    }
     /* 这两个页面的「返回」是层级返回，不是回 tab：群信息回聊天（要不聊天轮询就断了） */
     if(S.screen === 'groupcreate'){ goScreen('grouplist'); return; }
     if(S.screen === 'groupinfo'){
@@ -5185,6 +5190,9 @@ try{
   /* ---------------- 相册封面 ---------------- */
   function openCoverPick(){
     if(S.noMomentExtra){ toast('封面需要先执行 p3c 迁移'); return; }
+    /* 两个入口：设置页「相册封面」和我的相册封面本身。返回要各回各家，
+       否则从相册点进来、返回却掉进设置页，用户会以为走错了。 */
+    S.coverFrom = (S.screen === 'moments') ? 'moments' : 'settings';
     goPage('coverpick', 'me');
     renderCoverPick();
     /* 自己的动态可能还没拉过（比如直接从设置进来），先拉一页自己的 */
@@ -5200,8 +5208,7 @@ try{
     setMomentCover(u).then(function(){
       toast('封面换好啦 ✧');
       renderSettings();
-      back();
-      if(S.momentSelf) renderMomentHead();
+      back();          /* back() 会按来源页重画（相册或设置） */
     }).catch(function(e){ toast(friendly(e.message)); });
   }
 
@@ -5210,7 +5217,6 @@ try{
       toast('恢复默认封面');
       renderSettings();
       back();
-      if(S.momentSelf) renderMomentHead();
     }).catch(function(e){ toast(friendly(e.message)); });
   }
 
@@ -5224,7 +5230,6 @@ try{
       toast('封面换好啦 ✧');
       renderSettings();
       back();
-      if(S.momentSelf) renderMomentHead();
     }).catch(function(e){ toast(friendly(e.message)); });
   }
 
@@ -5547,7 +5552,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.18:38';
+    var BUILD='1029.18:46';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
