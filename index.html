@@ -293,7 +293,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.09:46</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.10:09</div>
         </div>
       </div>
     </section>
@@ -532,7 +532,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.09:46</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.10:09</div>
       </div>
     </section>
 
@@ -1148,13 +1148,16 @@
       var keptMap = {}, keptTail = [];
       if(initial){
         rows.reverse();
-        /* 竞态保护：本请求发出后用户可能已经开始发消息，这些乐观气泡还没有服务端 id。
-           直接 innerHTML='' 会把它们抹掉，而 deliver() 持有的是旧节点引用，
-           结果是消息已经入库、界面上却永久消失。
-           这里按 client_msg_id 记住节点：重绘时若服务端已回同一条，直接复用该节点，
-           避免「复用一份 + 新建一份」导致同一条消息出现两个气泡。 */
-        Array.prototype.forEach.call(msgsBox.querySelectorAll('.msg.pending'), function(n){
-          if(n.dataset.client) keptMap[n.dataset.client] = n; else keptTail.push(n);
+        /* 竞态保护：本请求发出后用户可能已经开始发消息，这些节点在服务端响应里
+           可能还没有（请求早于入库发出），直接 innerHTML='' 会永久删除它们。
+           注意选择器**不能只取 .msg.pending**：一条消息可能「已经发送成功（pending 类已移除）
+           但 initial 响应里没有它」，那种节点同样会被抹掉——这正是「消息发出去了却看不见」。
+           所以凡本地乐观产生的节点（带 data-client）一律先留着，等服务端行回来再就地升级。 */
+        Array.prototype.forEach.call(msgsBox.querySelectorAll('.msg[data-client]'), function(n){
+          keptMap[n.dataset.client] = n;
+        });
+        Array.prototype.forEach.call(msgsBox.querySelectorAll('.msg.pending:not([data-client])'), function(n){
+          keptTail.push(n);
         });
         msgsBox.innerHTML = '';
         S.lastId = 0; S.ids = {}; S.lastShownAt = 0;
@@ -1178,8 +1181,15 @@
         var n = addMsg(m, !initial, false);
         if(n) added++;
       });
-      /* 仍未入库的「发送中」气泡挂回尾部（原节点，deliver 后续改 class 依然生效） */
+      /* 仍未出现在服务端结果里的气泡挂回尾部（原节点，deliver 后续改 class 依然生效）。
+         判定用 id 比较而不是「是否发送成功」：
+           · 还在飞（没有 id）           → 挂回
+           · 已成功但比本次结果更新（initial 请求早于它发出）→ 挂回
+           · 比本次结果更早的旧历史（被 80 条窗口截掉）      → 丢弃，否则时间顺序会乱 */
+      var maxRowId = rows.length ? Number(rows[rows.length - 1].id) : 0;
       keptTail.concat(Object.keys(keptMap).map(function(k){ return keptMap[k]; })).forEach(function(n){
+        var lid = Number(n.dataset.id || 0);
+        if(lid && lid <= maxRowId) return;
         msgsBox.appendChild(n);
         added++;
       });
@@ -1214,7 +1224,8 @@
     deliver(key, node, text, cid);
   }
 
-  function deliver(key, node, text, cid){
+  function deliver(key, node, text, cid, attempt){
+    attempt = attempt || 0;
     return postMessage(cid, text, key).then(function(row){
       /* 防御：节点若曾被全量重绘摘掉，这里补挂回去，避免「已发出但看不见」*/
       if(msgsBox && !msgsBox.contains(node)) msgsBox.appendChild(node);
@@ -1230,6 +1241,18 @@
       scrollBottom();
       return p;
     }).catch(function(e){
+      /* 弱网自愈：超时 / 网络错误自动重试 2 次（间隔 0.8s、2s）。
+         复用同一个 client_msg_id，服务端唯一索引保证重试不会产生重复消息。
+         4xx 属于参数或权限问题，重试没有意义，直接判失败等用户处理。 */
+      var retriable = !e || !e.status || e.status >= 500;
+      if(retriable && attempt < 2){
+        if(S.pending[key]) S.pending[key].attempt = attempt + 1;
+        return new Promise(function(res){
+          setTimeout(res, attempt === 0 ? 800 : 2000);
+        }).then(function(){
+          return deliver(key, node, text, cid, attempt + 1);
+        });
+      }
       if(msgsBox && !msgsBox.contains(node)) msgsBox.appendChild(node);
       node.classList.remove('pending');
       node.classList.add('failed');
@@ -2014,19 +2037,45 @@
     apply();
   })();
 
+  /* ---------------- 兜底：清掉旧版 SW 遗留的「API 响应被缓存」污染 ----------------
+     v9 及更早的 SW 把跨源 API 的 GET 响应也写进了 CacheStorage，导致同一会话永远
+     返回首次那份结果（新消息看不到）。v10 已改成跨源一律放行，但已安装的用户设备上
+     旧缓存还在。这里在启动时主动删一次，让打开 App 就能看到真实消息，不必等 SW 换掉。 */
+  try{
+    if(window.caches && caches.keys){
+      caches.keys().then(function(ks){
+        ks.forEach(function(k){
+          caches.open(k).then(function(c){
+            c.keys().then(function(reqs){
+              reqs.forEach(function(r){
+                if(r.url.indexOf('supabase.co') > -1) c.delete(r);
+              });
+            }).catch(function(){});
+          }).catch(function(){});
+        });
+      }).catch(function(){});
+    }
+  }catch(e){}
+
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
+    var BUILD='1029.10:09';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
+      /* 按构建版本做「一次性刷新」标记：新版本各自能刷新一次，又不会循环刷新。
+         用固定标记的话，同一个会话里只要刷新过一次，后续再发版就不会自动更新了 */
       try{
-        if(sessionStorage.getItem('jw_reloaded')) return;
-        sessionStorage.setItem('jw_reloaded', '1');
+        if(sessionStorage.getItem('jw_reloaded') === BUILD) return;
+        sessionStorage.setItem('jw_reloaded', BUILD);
       }catch(e){}
       location.reload();
     });
     window.addEventListener('load', function(){
-      navigator.serviceWorker.register('sw.js').catch(function(){});
+      navigator.serviceWorker.register('sw.js').then(function(reg){
+        /* 主动查一次更新，不必等浏览器自己安排检查时机 */
+        if(reg && reg.update) reg.update().catch(function(){});
+      }).catch(function(){});
     });
   }
 </script>
