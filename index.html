@@ -207,7 +207,9 @@
   /* ---- 朋友圈真实数据（P3） ---- */
   .post .ptext{white-space:pre-wrap;word-break:break-word;}
   .post .ploc{font-size:11.5px;color:var(--sky);font-weight:800;margin:2px 0 4px;}
-  /* 九宫格按张数切：1 张按原比例（最高 300），2/4 张走两列，其余三列 */
+  /* 九宫格按张数切：1 张按原比例（最高 300），2/4 张走两列，其余三列。
+     宽度锁 240px —— 不锁的话 4 张图每格会顶到 180px，一屏只能看一条动态。 */
+  .pgrid{max-width:240px;}
   .pgrid.n1{grid-template-columns:1fr;max-width:62%;}
   .pgrid.n1 div{aspect-ratio:auto;max-height:300px;border:none;background:transparent;}
   .pgrid.n1 div img{width:auto;height:auto;max-width:100%;max-height:300px;object-fit:contain;border-radius:10px;}
@@ -215,11 +217,15 @@
   .pgrid div{overflow:hidden;background:#f2eefb;}
   .pgrid div img{width:100%;height:100%;object-fit:cover;display:block;}
   .pacts{display:flex;justify-content:flex-end;gap:14px;margin-top:6px;font-size:12px;color:#a99fb8;font-weight:800;}
+  /* 时间靠左、赞和评论靠右，别三个挤成一坨 */
+  .pacts .ptime{margin-right:auto;}
   .pacts span{cursor:pointer;}
   .pacts .plike.on{color:var(--pink);}
   /* 点赞 / 评论收在同一个浅色块里，和微信一致 */
   .pbox{background:#f7f4fd;border-radius:12px;padding:8px 10px;margin-top:6px;font-size:12.5px;font-weight:700;color:#5b5470;line-height:1.55;}
-  .pbox .lkrow{display:flex;gap:5px;flex-wrap:wrap;}
+  /* 用 block 而不是 flex：「喵将军、妈妈」之间的顿号要是 inline 连着的，
+     flex 的 gap 会在顿号两侧各留 5px，看起来像「喵将军 、 妈妈」 */
+  .pbox .lkrow{display:block;}
   .pbox .lkrow .who{color:var(--sky);font-weight:800;}
   .pbox .cmrow{padding:2px 0;}
   .pbox .cmrow .who{color:var(--sky);font-weight:800;}
@@ -463,7 +469,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.17:03</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.17:06</div>
         </div>
       </div>
     </section>
@@ -805,7 +811,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.17:03</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.17:06</div>
       </div>
     </section>
 
@@ -4631,7 +4637,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.17:03';
+    var BUILD='1029.17:06';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
