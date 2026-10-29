@@ -25,7 +25,13 @@
      --txt2   正文里的正文（比 --ink 浅一档）
      深色模式只改这些变量 + 少量结构性覆盖，不重写组件样式。 */
   :root{ --ink:#1a1a2e; --pink:#ff2e88; --yellow:#ffd23f; --lime:#8be04e; --sky:#2d9cff; --purple:#a855f7; --cream:#fff1f8; --soft:#f3eef7;
-         --card:#fff; --card2:#f7f4fd; --skel:#eee8f8; --dim:#8a80a0; --txt2:#4a4458; --line-soft:#00000010; }
+         --card:#fff; --card2:#f7f4fd; --skel:#eee8f8; --dim:#8a80a0; --txt2:#4a4458; --line-soft:#00000010;
+         /* 字体缩放乘数（FR-808）。只乘「读内容的字」，不乘图标/边框/间距 ——
+            整套等比放大需要改上百处 px，收益低且容易在 320px 小屏上破版。 */
+         --fs:1; }
+  html[data-fs="s"]{ --fs:.9; }
+  html[data-fs="l"]{ --fs:1.1; }
+  html[data-fs="xl"]{ --fs:1.22; }
   /* 深色：底色压到 #15131c（纯黑会让粉色投影发脏），边框 --ink 反成浅紫灰，
      阴影仍然是 rgba(26,26,46,…) —— 在深底上几乎看不见，靠边框区分层次就够了 */
   html.dark{ --ink:#ece6f5; --pink:#ff5fa2; --sky:#5cb0ff; --purple:#c084fc; --lime:#9ee86a; --yellow:#ffd85c;
@@ -66,9 +72,15 @@
   .ava{width:52px;height:52px;flex-shrink:0;border:3px solid var(--ink);border-radius:16px;background:var(--card);display:flex;align-items:center;justify-content:center;overflow:hidden;}
   .ava img{width:52px;height:52px;object-fit:cover;object-position:center 10%;}
   .mid{flex:1;min-width:0;}
-  .nm{font-weight:800;font-size:15.5px;display:flex;justify-content:space-between;align-items:baseline;}
-  .nm .t{font-size:10.5px;font-weight:700;color:var(--dim);}
-  .ms{font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:600;}
+  /* 昵称默认是块级带省略号；会话行的 .nm 才需要 flex 把时间推到右边。
+     只给「会话行」开 flex 的原因：flex 里裸文本节点会变成匿名 flex item，
+     它不会缩到比内容更窄，长昵称必然把时间顶出容器 —— 所以会话行额外包了 .nt。 */
+  .nm{font-weight:800;font-size:calc(15.5px * var(--fs));overflow:hidden;}
+  .nm .nt{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mid .nm{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .mid .nm .nt{flex:1;min-width:0;}
+  .nm .t{font-size:10.5px;font-weight:700;color:var(--dim);flex-shrink:0;}
+  .ms{font-size:calc(13px * var(--fs));color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:600;}
   .badge{min-width:20px;height:20px;padding:0 6px;border-radius:11px;background:var(--pink);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--ink);}
 
   /* chat detail */
@@ -77,7 +89,7 @@
   .msg{display:flex;gap:8px;margin:12px 14px;align-items:flex-start;}
   .msg.out{flex-direction:row-reverse;}
   .msg .a{width:40px;height:40px;border:2px solid var(--ink);border-radius:12px;background:var(--card);object-fit:cover;object-position:center 10%;flex-shrink:0;}
-  .bubble{max-width:68%;padding:10px 13px;border:3px solid var(--ink);border-radius:16px;background:var(--card);font-weight:600;box-shadow:3px 3px 0 rgba(26,26,46,.12);line-height:1.45;font-size:14px;word-break:break-word;}
+  .bubble{max-width:68%;padding:10px 13px;border:3px solid var(--ink);border-radius:16px;background:var(--card);font-weight:600;box-shadow:3px 3px 0 rgba(26,26,46,.12);line-height:1.45;font-size:calc(14px * var(--fs));word-break:break-word;}
   .msg.in .bubble{border-bottom-left-radius:5px;}
   .msg.out .bubble{background:var(--pink);color:#fff;box-shadow:3px 3px 0 rgba(255,46,136,.35);border-bottom-right-radius:5px;}
   .voice{display:flex;align-items:center;gap:8px;}
@@ -135,7 +147,7 @@
   .msg.out .col{align-items:flex-end;}
   .msg .col > .bubble{max-width:100%;}
   .msg .col > .bubble.imgonly{max-width:100%;}
-  .msender{font-size:10.5px;font-weight:800;color:var(--dim);margin:0 0 3px 7px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .msender{font-size:calc(10.5px * var(--fs));font-weight:800;color:var(--dim);margin:0 0 3px 7px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .mention{color:#0a7bd8;font-weight:800;}
   /* 会话列表里的「[有人@我]」：红字，跟微信一致，扫一眼就能看见 */
   .atme{color:#e8354f;font-weight:800;}
@@ -190,7 +202,7 @@
   .ccell{display:flex;align-items:center;gap:11px;padding:9px 16px;background:var(--card);border-bottom:2px solid var(--line-soft);}
   .ccell .ava{width:44px;height:44px;border-radius:13px;}
   .ccell .ava img{width:44px;height:44px;}
-  .ccell .nm{flex:1;font-weight:700;font-size:14.5px;}
+  .ccell .nm{flex:1;font-weight:700;font-size:calc(14.5px * var(--fs));}
   .idx{position:absolute;right:3px;top:50%;transform:translateY(-42%);z-index:5;display:flex;flex-direction:column;gap:1px;font-size:10px;font-weight:800;color:var(--pink);opacity:.8;pointer-events:none;}
 
   /* discover */
@@ -198,7 +210,7 @@
   .cell{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:2px solid var(--line-soft);cursor:pointer;}
   .cell:last-child{border-bottom:none;}
   .cell:active{background:var(--soft);}
-  .cell .nm{flex:1;font-weight:700;font-size:14.5px;}
+  .cell .nm{flex:1;font-weight:700;font-size:calc(14.5px * var(--fs));}
   /* 「我」页的果冻号：等宽一点、灰一点，像微信号那样只是个被动展示的值 */
   .cell .jval{font-size:13px;font-weight:800;color:var(--dim);letter-spacing:1px;font-variant-numeric:tabular-nums;}
   .chev{color:#c6bdd6;font-weight:800;font-size:16px;}
@@ -211,7 +223,7 @@
   .post .a{width:44px;height:44px;border:2px solid var(--ink);border-radius:12px;background:var(--card);object-fit:cover;object-position:center 10%;flex-shrink:0;}
   .post .pbody{flex:1;min-width:0;}
   .post .pname{font-weight:800;color:var(--sky);font-size:14px;}
-  .post .ptext{font-size:13.5px;font-weight:600;color:var(--txt2);margin:4px 0;line-height:1.5;}
+  .post .ptext{font-size:calc(13.5px * var(--fs));font-weight:600;color:var(--txt2);margin:4px 0;line-height:1.5;}
   .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:6px 0;}
   .pgrid div{aspect-ratio:1;border-radius:10px;border:2px solid var(--ink);}
   .pfoot{display:flex;gap:10px;font-size:11.5px;color:var(--dim);font-weight:700;margin-top:4px;}
@@ -294,7 +306,7 @@
   .cover.mine{cursor:pointer;}
   /* 详情页：那条动态铺满，评论不再折叠 */
   .post.detail{border-bottom:none;min-height:100%;}
-  .post.detail .ptext{font-size:14.5px;}
+  .post.detail .ptext{font-size:calc(14.5px * var(--fs));}
   .post.detail .pgrid{max-width:100%;}
   .post.detail .pbox{background:var(--card2);}
   /* 详情页底部有评论输入条，留出空间否则最后一条评论会被挡住 */
@@ -512,6 +524,50 @@
   .jcopy{display:inline-block;margin-left:6px;padding:2px 9px;border:2px solid var(--ink);border-radius:9px;background:var(--yellow);font-size:10.5px;font-weight:800;color:var(--ink);box-shadow:2px 2px 0 var(--ink);}
   .jcopy:active{transform:translate(2px,2px);box-shadow:none;}
   .hit .mid .src{display:inline-block;margin-top:4px;padding:1px 7px;border:2px solid var(--ink);border-radius:8px;background:var(--soft);font-size:10px;font-weight:800;color:var(--dim);}
+  /* ===== P3-5 设置补全（FR-807/808/809/811/708）===== */
+
+  /* 开关：复用 .cell 行，只把右侧的「值 + 箭头」换成这个 */
+  .sw{width:46px;height:27px;flex-shrink:0;border:3px solid var(--ink);border-radius:16px;background:var(--skel);position:relative;transition:background .18s;}
+  .sw::after{content:'';position:absolute;top:1px;left:1px;width:17px;height:17px;border-radius:50%;background:var(--card);border:2px solid var(--ink);transition:transform .18s cubic-bezier(.34,1.56,.64,1);}
+  .sw.on{background:var(--lime);}
+  .sw.on::after{transform:translateX(19px);}
+  html.dark .sw::after{background:#cfc7dd;}
+
+  /* 聊天背景（FR-808）：作用在滚动容器 .body 上而不是 .msgs ——
+     渐变铺在内容节点上时会随内容一起滚走，滚到中段就没有底色了。 */
+  html[data-bg="mint"] [data-screen="chatdetail"] .body{background:linear-gradient(160deg,#eafff4,#d6f5e6);}
+  html[data-bg="peach"] [data-screen="chatdetail"] .body{background:linear-gradient(160deg,#fff0f6,#ffe0ec);}
+  html[data-bg="night"] [data-screen="chatdetail"] .body{background:linear-gradient(160deg,#1c1a26,#262233);}
+  /* 亮色背景在深色模式下必须压暗，否则聊天页中间会开一块白窗 */
+  html.dark[data-bg="mint"] [data-screen="chatdetail"] .body{background:linear-gradient(160deg,#17241f,#1d2a25);}
+  html.dark[data-bg="peach"] [data-screen="chatdetail"] .body{background:linear-gradient(160deg,#251b21,#2d2128);}
+
+  /* 说明文字 + 原生时间输入（原生控件在手机上体验最好，只把外观压成 .mv 的样子） */
+  .hint{padding:8px 18px 22px;font-size:11.5px;line-height:1.8;color:var(--dim);font-weight:700;}
+  .tin{border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:800;color:var(--dim);text-align:right;padding:0;width:76px;-webkit-appearance:none;appearance:none;}
+  .tin::-webkit-calendar-picker-indicator{opacity:.45;}
+
+  /* 存储空间 */
+  .storetop{text-align:center;padding:20px 0 4px;}
+  .storetop .big{font-family:'ZCOOL KuaiLe';font-size:38px;line-height:1.1;}
+  .storetop .sub{font-size:11.5px;color:var(--dim);font-weight:700;margin-top:7px;padding:0 24px;line-height:1.6;}
+  .sbar{display:flex;height:16px;border:3px solid var(--ink);border-radius:10px;overflow:hidden;background:var(--card);margin:12px 14px 4px;}
+  .sbar i{display:block;height:100%;}
+  .sbar i.a{background:var(--pink);}
+  .sbar i.b{background:var(--sky);}
+  .sbar i.c{background:var(--yellow);}
+  .sbar i.d{background:var(--purple);}
+  .sleg{display:flex;flex-wrap:wrap;gap:8px 14px;padding:8px 16px 2px;}
+  .sleg span{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:var(--dim);}
+  .sleg span b{width:9px;height:9px;border-radius:3px;border:2px solid var(--ink);flex-shrink:0;display:block;}
+
+  /* 关于 */
+  .about{display:flex;flex-direction:column;align-items:center;padding:24px 16px 8px;}
+  .about .logo{font-size:54px;line-height:1;filter:drop-shadow(2px 3px 0 rgba(26,26,46,.2));}
+  .about .an{font-family:'ZCOOL KuaiLe';font-size:21px;margin-top:10px;}
+  .about .av{font-size:11.5px;color:var(--dim);font-weight:800;margin-top:6px;letter-spacing:.4px;}
+  .lic{font-size:11px;line-height:1.85;color:var(--dim);font-weight:700;white-space:pre-line;}
+
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}.row,.row.anim{opacity:1;}.sit{opacity:1;}.tab.on .sit{opacity:0;}.tab.on .stand{opacity:1;}}
 
   /* ===== P3-4 深色模式的「结构性」覆盖 =====
@@ -551,13 +607,16 @@
                  -3px -3px 0 #0d0b12,3px 3px 0 #0d0b12,-3px 3px 0 #0d0b12,3px -3px 0 #0d0b12,
                  6px 7px 0 #ff2e8877;}
 </style>
-<!-- 主题要在首帧之前定下来，否则深色用户会先看到一屏亮白再变黑（FOUC） -->
+<!-- 主题和字号要在首帧之前定下来，否则深色用户会先看到一屏亮白、大字号用户会先看到一屏小字（FOUC） -->
 <script>
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
     document.documentElement.classList.add('dark');
   }
+  var pf = JSON.parse(localStorage.getItem('jw_prefs') || '{}') || {};
+  if(pf.font && pf.font !== 'm') document.documentElement.setAttribute('data-fs', pf.font);
+  if(pf.chatBg && pf.chatBg !== 'default') document.documentElement.setAttribute('data-bg', pf.chatBg);
 }catch(e){}
 </script>
 </head>
@@ -587,7 +646,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.18:46</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.19:23</div>
         </div>
       </div>
     </section>
@@ -828,19 +887,19 @@ try{
       <div class="head"><div class="ttl">发现</div><div class="acts"></div></div>
       <div class="body">
         <div class="card">
-          <div class="cell" data-go="moments"><div class="chip" style="background:var(--pink)">📸</div><div class="nm">朋友圈</div><span class="cdot" id="dotMoments" style="display:none">0</span><div class="chev">›</div></div>
-          <div class="cell"><div class="chip" style="background:var(--purple)">🎬</div><div class="nm">视频号</div><div class="chev">›</div></div>
+          <div class="cell" data-go="moments" data-feat="moments"><div class="chip" style="background:var(--pink)">📸</div><div class="nm">朋友圈</div><span class="cdot" id="dotMoments" style="display:none">0</span><div class="chev">›</div></div>
+          <div class="cell" data-feat="channels"><div class="chip" style="background:var(--purple)">🎬</div><div class="nm">视频号</div><div class="chev">›</div></div>
         </div>
         <div class="card">
-          <div class="cell"><div class="chip" style="background:var(--sky)">🔍</div><div class="nm">扫一扫</div><div class="chev">›</div></div>
-          <div class="cell"><div class="chip" style="background:var(--lime)">📳</div><div class="nm">摇一摇</div><div class="chev">›</div></div>
+          <div class="cell" data-feat="scan"><div class="chip" style="background:var(--sky)">🔍</div><div class="nm">扫一扫</div><div class="chev">›</div></div>
+          <div class="cell" data-feat="shake"><div class="chip" style="background:var(--lime)">📳</div><div class="nm">摇一摇</div><div class="chev">›</div></div>
         </div>
         <div class="card">
-          <div class="cell"><div class="chip" style="background:var(--yellow)">👀</div><div class="nm">看一看</div><div class="chev">›</div></div>
-          <div class="cell"><div class="chip" style="background:var(--pink)">🔎</div><div class="nm">搜一搜</div><div class="chev">›</div></div>
+          <div class="cell" data-feat="look"><div class="chip" style="background:var(--yellow)">👀</div><div class="nm">看一看</div><div class="chev">›</div></div>
+          <div class="cell" data-feat="search"><div class="chip" style="background:var(--pink)">🔎</div><div class="nm">搜一搜</div><div class="chev">›</div></div>
         </div>
         <div class="card">
-          <div class="cell"><div class="chip" style="background:var(--sky)">🧩</div><div class="nm">小程序</div><div class="chev">›</div></div>
+          <div class="cell" data-feat="miniapp"><div class="chip" style="background:var(--sky)">🧩</div><div class="nm">小程序</div><div class="chev">›</div></div>
         </div>
       </div>
     </section>
@@ -940,15 +999,99 @@ try{
       <div class="body">
         <div class="card">
           <div class="cell" id="setTheme"><div class="chip" style="background:var(--purple)">🌙</div><div class="nm">深色模式</div><div class="mv" id="setThemeVal">跟随系统</div><div class="chev">›</div></div>
+          <div class="cell" id="setFont"><div class="chip" style="background:var(--sky)">🔤</div><div class="nm">字体大小</div><div class="mv" id="setFontVal">标准</div><div class="chev">›</div></div>
+          <div class="cell" id="setChatBg"><div class="chip" style="background:var(--lime)">🎨</div><div class="nm">聊天背景</div><div class="mv" id="setChatBgVal">默认</div><div class="chev">›</div></div>
         </div>
         <div class="card">
           <div class="cell" id="setRange"><div class="chip" style="background:var(--yellow)">🕒</div><div class="nm">朋友圈可见范围</div><div class="mv" id="setRangeVal">全部可见</div><div class="chev">›</div></div>
           <div class="cell" id="setCover"><div class="chip" style="background:var(--pink)">🖼</div><div class="nm">相册封面</div><div class="mv" id="setCoverVal">默认渐变</div><div class="chev">›</div></div>
         </div>
         <div class="card">
-          <div class="cell" id="setClearCache"><div class="chip" style="background:var(--lime)">🧹</div><div class="nm">清除本地缓存</div><div class="mv">聊天记录缓存</div><div class="chev">›</div></div>
+          <div class="cell" id="setNotify"><div class="chip" style="background:var(--pink)">🔔</div><div class="nm">通知</div><div class="mv" id="setNotifyVal">已开启</div><div class="chev">›</div></div>
+          <div class="cell" id="setStorage"><div class="chip" style="background:var(--sky)">💾</div><div class="nm">存储空间</div><div class="mv" id="setStorageVal">计算中…</div><div class="chev">›</div></div>
+          <div class="cell" id="setDiscover"><div class="chip" style="background:var(--purple)">🧭</div><div class="nm">发现页管理</div><div class="chev">›</div></div>
+          <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.18:46</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.19:23</div>
+      </div>
+    </section>
+
+    <!-- ================= 通知设置（P3-5 / FR-807） ================= -->
+    <section class="screen" data-screen="notify">
+      <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">通知</div>
+        <div style="width:38px;flex-shrink:0;"></div>
+      </div>
+      <div class="body">
+        <div class="card">
+          <div class="cell" id="nfSound"><div class="nm">新消息提示音</div><div class="sw" id="swSound" role="switch" aria-checked="true"></div></div>
+          <div class="cell" id="nfVibrate"><div class="nm">新消息震动</div><div class="sw" id="swVibrate" role="switch" aria-checked="true"></div></div>
+          <div class="cell" id="nfDetail"><div class="nm">通知显示消息详情</div><div class="sw" id="swDetail" role="switch" aria-checked="true"></div></div>
+        </div>
+        <div class="card">
+          <div class="cell" id="nfDnd"><div class="nm">免打扰时段</div><div class="sw" id="swDnd" role="switch" aria-checked="false"></div></div>
+          <div class="cell" id="nfFrom"><div class="nm">开始时间</div><input class="tin" id="nfFromVal" type="time" value="23:00"></div>
+          <div class="cell" id="nfTo"><div class="nm">结束时间</div><input class="tin" id="nfToVal" type="time" value="07:00"></div>
+        </div>
+        <div class="hint" id="nfHint"></div>
+      </div>
+    </section>
+
+    <!-- ================= 存储空间（P3-5 / FR-809） ================= -->
+    <section class="screen" data-screen="storage">
+      <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">存储空间</div>
+        <div style="width:38px;flex-shrink:0;"></div>
+      </div>
+      <div class="body">
+        <div class="storetop">
+          <div class="big" id="stTotal">—</div>
+          <div class="sub" id="stSub">正在计算…</div>
+        </div>
+        <div class="sbar" id="stBar">
+          <i class="a" style="width:0"></i><i class="b" style="width:0"></i><i class="c" style="width:0"></i><i class="d" style="width:0"></i>
+        </div>
+        <div class="sleg" id="stLeg"></div>
+        <div class="card" style="margin-top:12px">
+          <div class="cell" id="stClear"><div class="chip" style="background:var(--lime)">🧹</div><div class="nm">清理聊天缓存</div><div class="chev">›</div></div>
+        </div>
+        <div class="hint" id="stHint"></div>
+      </div>
+    </section>
+
+    <!-- ================= 发现页管理（P3-5 / FR-708） ================= -->
+    <section class="screen" data-screen="discovermgr">
+      <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">发现页管理</div>
+        <div style="width:38px;flex-shrink:0;"></div>
+      </div>
+      <div class="body">
+        <div class="card" id="dscList"></div>
+        <div class="hint">关掉的入口不会出现在「发现」页，已打开的功能照常可用。</div>
+      </div>
+    </section>
+
+    <!-- ================= 关于（P3-5 / FR-811） ================= -->
+    <section class="screen" data-screen="about">
+      <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">关于</div>
+        <div style="width:38px;flex-shrink:0;"></div>
+      </div>
+      <div class="body">
+        <div class="about">
+          <div class="logo">🍮</div>
+          <div class="an">果冻微信</div>
+          <div class="av" id="abVer">v1.0</div>
+        </div>
+        <div class="card">
+          <div class="cell" id="abCheck"><div class="nm">检查更新</div><div class="mv" id="abCheckVal">—</div><div class="chev">›</div></div>
+          <div class="cell" id="abLic"><div class="nm">开源许可</div><div class="chev">›</div></div>
+        </div>
+        <div class="card"><div class="lic" id="abInfo"></div></div>
       </div>
     </section>
 
@@ -979,7 +1122,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.18:46</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.19:23</div>
       </div>
     </section>
 
@@ -1059,6 +1202,47 @@ try{
   /* 语音（P3-3）：微信上限 60 秒，低于 0.8 秒当误触丢弃 */
   var VOICE_MAX_MS = 60000, VOICE_MIN_MS = 800;
 
+  /* ===== 本地偏好（P3-5 FR-807/808/708）=====
+     全部塞进 localStorage 的 jw_prefs 一个 key：
+     ① 存储空间页要按分类算占用，key 越少越好归类；
+     ② 用户点「恢复默认」只需要删一个 key，不会漏。 */
+  var PREF_DEF = {
+    sound:  true,        /* 新消息提示音 */
+    vibrate:true,        /* 新消息震动（iOS 不支持，静默失效） */
+    detail: true,        /* 标题/通知里显示消息详情；关闭时只显示条数 */
+    dnd:    false,       /* 免打扰时段总开关 */
+    dndFrom:'23:00',     /* 免打扰开始时间 */
+    dndTo:  '07:00',     /* 免打扰结束时间（可小于开始时间，表示跨零点） */
+    font:   'm',         /* 字体档位：s / m / l / xl */
+    chatBg: 'default',   /* 聊天背景：default / mint / peach / night */
+    discover: {}         /* 发现页入口开关：只存「被关掉的」，缺省=开 */
+  };
+
+  /* 字体档位 → --fs 乘数。上限压到 1.22：
+     .nm 是 flex 行（昵称 + 时间），再大长昵称会把时间顶掉。 */
+  var FONT_STEPS = { s: 0.9, m: 1, l: 1.1, xl: 1.22 };
+  var FONT_LABEL = { s: '小', m: '标准', l: '大', xl: '超大' };
+  var FONT_ORDER = ['s', 'm', 'l', 'xl'];
+
+  var CHATBG = {
+    default: { label: '默认', css: '' },
+    mint:    { label: '薄荷', css: 'linear-gradient(160deg,#eafff4,#d6f5e6)' },
+    peach:   { label: '蜜桃', css: 'linear-gradient(160deg,#fff0f6,#ffe0ec)' },
+    night:   { label: '夜色', css: 'linear-gradient(160deg,#1c1a26,#262233)' }
+  };
+
+  /* 发现页入口清单。id 与 app_template.html 里 cell 的 data-feat 一一对应，
+     改一处必须同步另一处，否则开关点了没反应（tools_check_layers 不管这个）。 */
+  var FEATS = [
+    { id: 'moments',  name: '朋友圈',  emoji: '📸', color: 'var(--pink)' },
+    { id: 'channels', name: '视频号',  emoji: '🎬', color: 'var(--purple)' },
+    { id: 'scan',     name: '扫一扫',  emoji: '🔍', color: 'var(--sky)' },
+    { id: 'shake',    name: '摇一摇',  emoji: '📳', color: 'var(--lime)' },
+    { id: 'look',     name: '看一看',  emoji: '👀', color: 'var(--yellow)' },
+    { id: 'search',   name: '搜一搜',  emoji: '🔎', color: 'var(--pink)' },
+    { id: 'miniapp',  name: '小程序',  emoji: '🧩', color: 'var(--sky)' }
+  ];
+
   var S = {
     sess: null,
     me:      { id:'', nickname:'我的萌将', avatar:'ava_hero', email:'', jelly_id:'' },
@@ -1109,11 +1293,39 @@ try{
     readMark: {},         /* 会话id -> 本地已读时间戳。返回列表时不等服务端写回，
                              用它在这个短窗口内压住服务端返回的旧 unread，避免角标回闪 */
     deletedIds: {},       /* 消息id -> 1。本地删除（只我这一侧看不见）的消息集合 */
+    /* ---- 本地偏好（P3-5）---- */
+    prefs: null,          /* loadPrefs() 填充，见下方 PREF_DEF */
+    noticeAt: 0,          /* 上次响铃/震动的时刻，防连发把手机震成按摩器 */
     filter: '',
     screen: 'login',
     listT: 0, chatT: 0, reqT: 0,
     authMode: 'in'
   };
+
+  function loadPrefs(){
+    var o = null;
+    try{ o = JSON.parse(store('jw_prefs') || 'null'); }catch(e){ o = null; }
+    var p = {}, k;
+    for(k in PREF_DEF) p[k] = PREF_DEF[k];
+    if(o && typeof o === 'object'){
+      for(k in PREF_DEF) if(o[k] !== undefined && o[k] !== null) p[k] = o[k];
+    }
+    /* 脏值兜底：用户手改过 localStorage / 老版本留下的值时不许把界面搞崩 */
+    if(!p.discover || typeof p.discover !== 'object' || p.discover instanceof Array) p.discover = {};
+    if(!FONT_STEPS[p.font]) p.font = 'm';
+    if(!CHATBG[p.chatBg]) p.chatBg = 'default';
+    if(typeof p.dndFrom !== 'string' || !/^\d{1,2}:\d{2}$/.test(p.dndFrom)) p.dndFrom = '23:00';
+    if(typeof p.dndTo !== 'string' || !/^\d{1,2}:\d{2}$/.test(p.dndTo)) p.dndTo = '07:00';
+    S.prefs = p;
+    return p;
+  }
+
+  function savePrefs(patch){
+    var p = S.prefs || loadPrefs(), k;
+    if(patch) for(k in patch) p[k] = patch[k];
+    try{ localStorage.setItem('jw_prefs', JSON.stringify(p)); }catch(e){}
+    return p;
+  }
 
   /* ---------------- 基础工具 ---------------- */
   function $(s){ return document.querySelector(s); }
@@ -1127,6 +1339,44 @@ try{
   }
 
   function unstore(k){ try{ localStorage.removeItem(k); }catch(e){} }
+
+  /* 字符串按 UTF-8 算字节数。
+     localStorage 容量按「字节」算（多数浏览器 5MB），而 JS 的 length 是 UTF-16 码元数，
+     一个中文字 length=1 但占 3 字节 —— 用 length 统计会让占用显示少掉 2/3。
+     放 core 而不是 logic 的原因：存储空间页要在 core 层直接算占用，
+     而 logic 依赖 core 是允许的、反过来不行。 */
+  function utf8Bytes(s){
+    s = String(s == null ? '' : s);
+    var n = 0;
+    for(var i = 0; i < s.length; i++){
+      var c = s.charCodeAt(i);
+      if(c < 0x80) n += 1;
+      else if(c < 0x800) n += 2;
+      else if(c >= 0xD800 && c <= 0xDBFF){ n += 4; i++; }   /* 代理对：4 字节，跳过后半个码元 */
+      else n += 3;
+    }
+    return n;
+  }
+
+  /* 统计 localStorage 占用并按「登录信息 / 偏好设置 / 其他」归类。
+     遍历而不是写死 key 清单：将来新增 key 忘了登记也不会少算。
+     隐私模式下访问 localStorage 会抛，所以整段包 try。 */
+  function storageBreakdown(){
+    var out = { auth: 0, pref: 0, other: 0, total: 0, keys: 0 };
+    var PREFK = { jw_theme: 1, jw_prefs: 1, jw_emoji_recent: 1 };
+    try{
+      for(var i = 0; i < localStorage.length; i++){
+        var k = localStorage.key(i);
+        if(!k) continue;
+        var n = utf8Bytes(k) + utf8Bytes(localStorage.getItem(k) || '');
+        if(k === 'jw_sess') out.auth += n;
+        else if(PREFK[k]) out.pref += n;
+        else out.other += n;
+        out.total += n; out.keys++;
+      }
+    }catch(e){}
+    return out;
+  }
 
   function pad2(n){ return ('0' + n).slice(-2); }
 
@@ -2279,6 +2529,76 @@ try{
     }catch(e){ return 0; }
   }
 
+  /* ---------------- 偏好相关纯函数（P3-5） ---------------- */
+
+  /* 免打扰时段判定。入参是 'HH:MM' 字符串和当前时刻（毫秒），返回布尔。
+     两种特殊情形必须显式处理：
+       ① 跨零点：23:00 → 07:00，此时 from > to，判定要「或」而不是「与」；
+       ② from === to：视为不生效。否则 22:00→22:00 会把用户全天静音，
+          这种静音用户根本查不出原因。 */
+  function inDnd(from, to, now){
+    function min(s){
+      var m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '').trim());
+      if(!m) return -1;
+      var h = +m[1], mi = +m[2];
+      if(h > 23 || mi > 59) return -1;
+      return h * 60 + mi;
+    }
+    var a = min(from), b = min(to);
+    if(a < 0 || b < 0 || a === b) return false;
+    var d = now == null ? new Date() : new Date(now);
+    var cur = d.getHours() * 60 + d.getMinutes();
+    return a < b ? (cur >= a && cur < b) : (cur >= a || cur < b);
+  }
+
+  /* 免打扰时段的中文说明。跨零点时补一句「次日」，避免「23:00-07:00」
+     被读成负区间。 */
+  function dndLabel(from, to){
+    function min(s){
+      var m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '').trim());
+      return m ? (+m[1]) * 60 + (+m[2]) : -1;
+    }
+    var a = min(from), b = min(to);
+    if(a < 0 || b < 0 || a === b) return '未设置';
+    return from + ' – ' + (a > b ? '次日 ' : '') + to;
+  }
+
+  /* 字节数转人类可读。存储空间页全用它，避免各页面自己格式化出不一致的单位。 */
+  function fmtBytes(n){
+    n = Number(n) || 0;
+    if(n < 1024) return n + ' B';
+    if(n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  /* 从缓存的消息数组里按类型归类字符数。
+     只统计 jw_cache 的结构化内容（文字 + 各类媒体引用），
+     真实图片/语音的二进制在 Supabase 存储里，本地只存 URL —— 页面文案必须如实说明，
+     不能把「图片 0 B」直接摆给用户看而不解释。 */
+  function cacheBreakdown(rows){
+    var out = { text: 0, image: 0, voice: 0, other: 0 }, sum = 0;
+    (rows || []).forEach(function(m){
+      if(!m) return;
+      var c = String(m.content == null ? '' : m.content);
+      if(m.msg_type === 'image'){ out.image += utf8Bytes(c); }
+      else if(m.msg_type === 'voice'){ out.voice += utf8Bytes(c); }
+      else if(m.msg_type === 'text' || !m.msg_type){ out.text += utf8Bytes(c); }
+      else { out.other += utf8Bytes(c); }
+      sum += utf8Bytes(c);
+    });
+    out.total = sum;
+    return out;
+  }
+
+  /* 设置页「通知」右侧的摘要文案。三态，优先级从「更严重」往「更正常」排：
+     全静音 > 免打扰中 > 已开启。用户扫一眼就知道现在手机到底会不会响。 */
+  function notifySummary(p){
+    if(!p) return '已开启';
+    if(!p.sound && !p.vibrate) return '静音';
+    if(p.dnd) return '免打扰 ' + dndLabel(p.dndFrom, p.dndTo);
+    return '已开启';
+  }
+
 /* =====================================================================
    果冻微信 · VIEW
    视图层：所有 render* / paint* / 弹层 / DOM 复用。
@@ -2306,9 +2626,12 @@ try{
 
     var mid = el('div', 'mid');
     var nm = el('div', 'nm');
+    /* 昵称必须包一层 span：裸文本在 flex 容器里是「匿名 flex item」，
+       不会缩到比内容更窄，放大字号后长昵称会把右侧时间顶出屏幕。 */
     var nmText = document.createTextNode(convName(c));
+    var ntBox = el('span', 'nt'); ntBox.appendChild(nmText);
     var tEl = el('span', 't', fmtListTime(c.last && c.last.created_at));
-    nm.appendChild(nmText); nm.appendChild(tEl);
+    nm.appendChild(ntBox); nm.appendChild(tEl);
     var msEl = el('div', 'ms');
     var msAt = el('span', 'atme', '[有人@我] ');
     msAt.style.display = c.mention > 0 ? '' : 'none';
@@ -3703,6 +4026,142 @@ try{
     if(r) r.textContent = S.noMomentExtra ? '还没开通' : momentRangeLabel(S.momentRange);
     var c = $('#setCoverVal');
     if(c) c.textContent = S.momentCover ? '已设置' : '默认渐变';
+
+    var p = S.prefs || loadPrefs();
+    var f = $('#setFontVal');
+    if(f) f.textContent = FONT_LABEL[p.font] || '标准';
+    var bg = $('#setChatBgVal');
+    if(bg) bg.textContent = (CHATBG[p.chatBg] || CHATBG['default']).label;
+    var nt = $('#setNotifyVal');
+    if(nt) nt.textContent = notifySummary(p);
+    /* 存储占用只统计 localStorage —— 消息缓存在内存里，重开页面就没了。
+       两处一定要分开说，否则用户会以为「清了缓存图片就该消失」。 */
+    var st = $('#setStorageVal');
+    if(st) st.textContent = fmtBytes(storageBreakdown().total);
+  }
+
+  /* ---------------- 通知设置（P3-5 / FR-807） ---------------- */
+  function paintSw(id, on){
+    var n = $(id); if(!n) return;
+    n.classList.toggle('on', !!on);
+    n.setAttribute('aria-checked', on ? 'true' : 'false');
+  }
+
+  function renderNotify(){
+    var p = S.prefs || loadPrefs();
+    paintSw('#swSound', p.sound);
+    paintSw('#swVibrate', p.vibrate);
+    paintSw('#swDetail', p.detail);
+    paintSw('#swDnd', p.dnd);
+
+    var a = $('#nfFromVal'), b = $('#nfToVal');
+    if(a) a.value = p.dndFrom;
+    if(b) b.value = p.dndTo;
+    /* 免打扰关着的时候，起止时间不该看起来「可用」——置灰并禁用，
+       否则用户改了时间却没生效，会以为是 bug。 */
+    if(a) a.disabled = !p.dnd;
+    if(b) b.disabled = !p.dnd;
+
+    var h = $('#nfHint');
+    if(h){
+      var vib = !p.vibrate ? '\n· 震动只有部分安卓浏览器支持，iOS 会静默跳过，这是系统限制。' : '';
+      h.textContent = (p.dnd
+        ? '免打扰时段：' + dndLabel(p.dndFrom, p.dndTo) + '，期间不响铃不震动，但会话角标照常累计。'
+        : '免打扰时段关闭时全天都会提醒。时段可以跨越零点（例如 23:00 – 次日 07:00）。')
+        + vib;
+    }
+  }
+
+  /* ---------------- 存储空间（P3-5 / FR-809） ---------------- */
+  function renderStorage(){
+    var ls = storageBreakdown();
+    /* 内存里的消息缓存：按类型拆开，让用户看清楚「语音/图片本地只存地址」这件事 */
+    var rows = [];
+    for(var id in S.msgCache){
+      var rec = S.msgCache[id];
+      if(rec && rec.rows) rows = rows.concat(rec.rows);
+    }
+    var bd = cacheBreakdown(rows);
+
+    var t = $('#stTotal');
+    if(t) t.textContent = fmtBytes(ls.total);
+    var sub = $('#stSub');
+    if(sub){
+      sub.textContent = ls.keys
+        ? '本地存储共 ' + ls.keys + ' 项 · 浏览器上限通常为 5 MB'
+        : '本地还没有写入任何数据';
+    }
+
+    /* 条形图只按真实的三类分：登录 / 偏好 / 其他。不硬凑「图片、语音」两栏 ——
+       本地确实没有原图原音，凑出来只会是 0 B 的假数据。 */
+    var bar = $('#stBar');
+    if(bar){
+      var segs = bar.querySelectorAll('i');
+      var all = ls.total || 1;
+      var w = [ls.auth, ls.pref, ls.other].map(function(n){ return (n / all * 100); });
+      for(var i = 0; i < segs.length; i++) segs[i].style.width = (i < 3 ? w[i] : 0).toFixed(2) + '%';
+    }
+
+    var leg = $('#stLeg');
+    if(leg){
+      leg.innerHTML = '';
+      [['a', '登录信息', ls.auth], ['b', '偏好设置', ls.pref], ['c', '其他', ls.other]].forEach(function(x){
+        var s = el('span');
+        var b = el('b'); b.style.background = 'var(--' + ({ a: 'pink', b: 'sky', c: 'yellow' }[x[0]]) + ')';
+        s.appendChild(b);
+        s.appendChild(document.createTextNode(x[1] + ' ' + fmtBytes(x[2])));
+        leg.appendChild(s);
+      });
+    }
+
+    var h = $('#stHint');
+    if(h){
+      h.textContent = '本次会话内存中另有 ' + rows.length + ' 条已加载消息（约 '
+        + fmtBytes(bd.text + bd.image + bd.voice + bd.other) + '，其中图片 '
+        + fmtBytes(bd.image) + '、语音 ' + fmtBytes(bd.voice) + '）。'
+        + '\n图片和语音的原始文件存在云端，手机上只记地址，所以本地占用很小；关闭页面后这部分自动释放。'
+        + '\n清理缓存不会删除聊天记录，也不会退出登录。';
+    }
+  }
+
+  /* ---------------- 发现页管理（P3-5 / FR-708） ---------------- */
+  function renderDiscoverMgr(){
+    var box = $('#dscList'); if(!box) return;
+    var p = S.prefs || loadPrefs();
+    box.innerHTML = '';
+    FEATS.forEach(function(f){
+      var off = !!(p.discover && p.discover[f.id]);
+      var row = el('div', 'cell');
+      row.dataset.feat = f.id;
+      var chip = el('div', 'chip');
+      chip.style.background = f.color;
+      chip.textContent = f.emoji;
+      row.appendChild(chip);
+      row.appendChild(el('div', 'nm', f.name));
+      var sw = el('div', 'sw' + (off ? '' : ' on'));
+      sw.setAttribute('role', 'switch');
+      sw.setAttribute('aria-checked', off ? 'false' : 'true');
+      row.appendChild(sw);
+      row.addEventListener('click', function(){ toggleFeat(f.id); });
+      box.appendChild(row);
+    });
+  }
+
+  /* ---------------- 关于（P3-5 / FR-811） ---------------- */
+  function renderAbout(){
+    var build = (window.__BUILD || '') || 'dev';
+    var v = $('#abVer');
+    if(v) v.textContent = 'v1.0 · 构建 ' + build;
+    var info = $('#abInfo');
+    if(info){
+      info.textContent = '果冻微信 · 一个照着微信做的波普风聊天 Demo\n'
+        + '构建 ' + build + '\n'
+        + '前端：原生 JS + CSS，无框架、无构建期依赖\n'
+        + '后端：Supabase（Postgres + Auth + Storage）\n'
+        + '字体：ZCOOL KuaiLe / Baloo 2（SIL Open Font License 1.1）\n'
+        + '头像与表情：Twemoji（CC-BY 4.0）\n'
+        + '开发者：墨鱼 · 仅用于学习与个人演示，不含任何支付或真实用户数据';
+    }
   }
 
   /* ---------------- 相册封面 ---------------- */
@@ -4356,6 +4815,14 @@ try{
       else { goScreen('settings'); renderSettings(); }
       return;
     }
+    /* P3-5 的四个设置子页同样是层级返回：回设置页本身。
+       不能落到下面的 setTab(backTo) —— backTo 存的是 'settings'，
+       它不是 tab key，setTab 会静默失败，用户点了返回毫无反应。 */
+    if(S.screen === 'notify' || S.screen === 'storage' || S.screen === 'discovermgr' || S.screen === 'about'){
+      goScreen('settings');
+      renderSettings();
+      return;
+    }
     /* 这两个页面的「返回」是层级返回，不是回 tab：群信息回聊天（要不聊天轮询就断了） */
     if(S.screen === 'groupcreate'){ goScreen('grouplist'); return; }
     if(S.screen === 'groupinfo'){
@@ -4743,6 +5210,134 @@ try{
     toast(v === 'dark' ? '深色模式已开' : (v === 'light' ? '浅色模式已开' : '跟随系统'));
   }
 
+  /* ---------------- 本地偏好：字体 / 背景 / 发现页（P3-5） ----------------
+     三者的共同点：只影响本机外观，不写服务端，也不需要迁移。
+     所以统一走 savePrefs → applyXxx 两步，改完立刻生效、刷新后保持。 */
+  function applyFont(){
+    var f = (S.prefs && S.prefs.font) || 'm';
+    /* m 是默认档，删掉属性比设成 "m" 干净：CSS 里就不需要为默认值再写一条规则 */
+    if(f === 'm') document.documentElement.removeAttribute('data-fs');
+    else document.documentElement.setAttribute('data-fs', f);
+  }
+
+  function applyChatBg(){
+    var b = (S.prefs && S.prefs.chatBg) || 'default';
+    if(b === 'default') document.documentElement.removeAttribute('data-bg');
+    else document.documentElement.setAttribute('data-bg', b);
+  }
+
+  /* 只改 display，不重建 DOM：重建会把朋友圈那行的红点节点一起丢掉，
+     导致关掉一个开关后红点消失、要等下一轮轮询才回来。 */
+  function applyDiscover(){
+    var off = (S.prefs && S.prefs.discover) || {};
+    var nodes = document.querySelectorAll('[data-screen="discover"] [data-feat]');
+    for(var i = 0; i < nodes.length; i++){
+      nodes[i].style.display = off[nodes[i].getAttribute('data-feat')] ? 'none' : '';
+    }
+  }
+
+  function setPref(k, v){
+    var patch = {}; patch[k] = v;
+    savePrefs(patch);
+  }
+
+  function toggleFeat(id){
+    var p = S.prefs || loadPrefs();
+    var off = {};
+    for(var k in p.discover) off[k] = p.discover[k];
+    if(off[id]) delete off[id]; else off[id] = 1;
+    setPref('discover', off);
+    applyDiscover();
+    renderDiscoverMgr();
+  }
+
+  /* ---------------- 提示音 / 震动（P3-5 FR-807） ----------------
+     不用音频文件：① 离线可用，② 不用往 build 的 base64 注入表里再加一项。
+     用 WebAudio 现场合成两声短促的「叮」。 */
+  var audioCtx = null;
+
+  function beep(){
+    try{
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!Ctx) return false;
+      audioCtx = audioCtx || new Ctx();
+      if(audioCtx.state === 'suspended' && audioCtx.resume) audioCtx.resume();
+      var t0 = audioCtx.currentTime;
+      var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(880, t0);
+      o.frequency.setValueAtTime(1180, t0 + 0.08);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.14, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.26);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t0); o.stop(t0 + 0.28);
+      return true;
+    }catch(e){ return false; }
+  }
+
+  function buzz(){
+    try{ if(navigator.vibrate) navigator.vibrate([0, 28, 70, 28]); }catch(e){}
+  }
+
+  /* 收到新消息时提醒一次。
+     三道闸：① 免打扰时段内完全静音（但角标照常）；
+             ② 1.5 秒内只提醒一次 —— 列表 3 秒轮询一次，连发会把手机变成按摩器；
+             ③ 自己正看着这个会话时不提醒。 */
+  var lastNotice = 0;
+
+  function notice(){
+    var p = S.prefs || loadPrefs();
+    if(p.dnd && inDnd(p.dndFrom, p.dndTo, Date.now())) return;
+    if(!p.sound && !p.vibrate) return;
+    var now = Date.now();
+    if(now - lastNotice < 1500) return;
+    lastNotice = now;
+    if(p.sound) beep();
+    if(p.vibrate) buzz();
+  }
+
+  /* ---------------- 未读跟踪：提醒 + 标题（P3-5） ---------------- */
+  var lastUnread = -1;
+
+  function trackUnread(list){
+    var t = 0;
+    (list || []).forEach(function(c){ t += (c.unread || 0); });
+    /* 首次加载（lastUnread < 0）不提醒：刚登录就看到列表，本来就没「新」消息 */
+    if(lastUnread >= 0 && t > lastUnread) notice();
+    lastUnread = t;
+    paintTitle();
+  }
+
+  /* 页面被切到后台时，标签标题是唯一还在用户视野里的东西（尤其在桌面/平板上）。
+     关闭「显示消息详情」后只报条数，不泄漏是谁发的内容。 */
+  function paintTitle(){
+    var t = lastUnread > 0 ? lastUnread : 0;
+    if(!document.hidden || !t){ document.title = '果冻微信'; return; }
+    var p = S.prefs || loadPrefs();
+    if(!p.detail){ document.title = '(' + t + ') 新消息'; return; }
+    /* 取最近有未读的那个会话 */
+    var hit = null;
+    (S.convs || []).forEach(function(c){
+      if(!(c.unread > 0)) return;
+      if(!hit){ hit = c; return; }
+      var a = (c.last && c.last.created_at) || '', b = (hit.last && hit.last.created_at) || '';
+      if(a > b) hit = c;
+    });
+    document.title = '(' + t + ') ' + (hit ? convName(hit) : '') + '：' + (hit ? convPreview(hit) : '新消息');
+  }
+
+  /* loadConvs 的调用点有十几处，逐个加副作用容易漏。
+     这里用一次性包装统一挂上「新消息提醒 / 标题」——
+     比在每个 then 里复制一行更不容易漏，也不改动任何调用点。 */
+  var _loadConvsRaw = loadConvs;
+  loadConvs = function(){
+    return _loadConvsRaw.apply(null, arguments).then(function(rows){
+      trackUnread(rows);
+      return rows;
+    });
+  };
+
   try{
     var mqDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
     if(mqDark && mqDark.addEventListener){
@@ -4764,7 +5359,36 @@ try{
 
   bind('#setCover', 'click', openCoverPick);
 
-  bind('#setClearCache', 'click', clearLocalCache);
+  /* ---------------- P3-5：设置补全 ---------------- */
+  bind('#setFont', 'click', openFontSheet);
+
+  bind('#setChatBg', 'click', openChatBgSheet);
+
+  bind('#setNotify', 'click', openNotify);
+
+  bind('#setStorage', 'click', openStorage);
+
+  bind('#setDiscover', 'click', openDiscoverMgr);
+
+  bind('#setAbout', 'click', openAbout);
+
+  bind('#nfSound', 'click', function(){ togglePref('sound'); });
+
+  bind('#nfVibrate', 'click', function(){ togglePref('vibrate'); });
+
+  bind('#nfDetail', 'click', function(){ togglePref('detail'); });
+
+  bind('#nfDnd', 'click', function(){ togglePref('dnd'); });
+
+  bind('#nfFromVal', 'change', function(){ setPref('dndFrom', this.value || '23:00'); renderNotify(); });
+
+  bind('#nfToVal', 'change', function(){ setPref('dndTo', this.value || '07:00'); renderNotify(); });
+
+  bind('#stClear', 'click', clearLocalCache);
+
+  bind('#abCheck', 'click', checkUpdate);
+
+  bind('#abLic', 'click', openLicSheet);
 
   bind('#cvReset', 'click', resetCover);
 
@@ -5146,6 +5770,105 @@ try{
     renderSettings();
   }
 
+  /* ---------------- P3-5：通知 / 存储 / 发现页 / 关于 ---------------- */
+  function openNotify(){
+    goPage('notify', 'settings');
+    renderNotify();
+  }
+
+  function openStorage(){
+    goPage('storage', 'settings');
+    renderStorage();
+  }
+
+  function openDiscoverMgr(){
+    goPage('discovermgr', 'settings');
+    renderDiscoverMgr();
+  }
+
+  function openAbout(){
+    goPage('about', 'settings');
+    renderAbout();
+  }
+
+  function togglePref(k){
+    var p = S.prefs || loadPrefs();
+    var was = p[k];
+    setPref(k, !was);
+    /* 设置页的「通知」摘要要跟着变，否则用户返回上一层还看到旧的「已开启」。
+       该页此刻可能不在屏幕上，但节点都在，直接刷不会报错。 */
+    renderNotify();
+    renderSettings();
+    /* 刚打开就立刻给一次反馈：否则用户点完「提示音」听不到任何动静，
+       会以为是开关没生效（尤其震动在 iOS 上本来就静默）。 */
+    if(k === 'sound' && !was) beep();
+    if(k === 'vibrate' && !was) buzz();
+    if(k === 'dnd') toast(was ? '免打扰已关闭' : '免打扰已开启');
+  }
+
+  function openFontSheet(){
+    var p = S.prefs || loadPrefs();
+    openSheet(FONT_ORDER.map(function(k){
+      return {
+        label: FONT_LABEL[k] + (p.font === k ? ' · 当前' : ''),
+        fn: function(){
+          setPref('font', k); applyFont(); renderSettings();
+          toast('字体已切换为「' + FONT_LABEL[k] + '」');
+        }
+      };
+    }));
+  }
+
+  function openChatBgSheet(){
+    var p = S.prefs || loadPrefs();
+    var keys = ['default', 'mint', 'peach', 'night'];
+    openSheet(keys.map(function(k){
+      return {
+        label: CHATBG[k].label + (p.chatBg === k ? ' · 当前' : ''),
+        fn: function(){
+          setPref('chatBg', k); applyChatBg(); renderSettings();
+          toast('聊天背景已切换');
+        }
+      };
+    }));
+  }
+
+  /* 检查更新：Service Worker 的 update() 只是「去服务器问一次」，
+     它不会自己把新版本换上去（要等所有标签页关掉）。
+     所以这里查完要明确告诉用户「有」还是「没有」，而不是转两圈就说已是最新。 */
+  function checkUpdate(){
+    var out = $('#abCheckVal');
+    if(out) out.textContent = '检查中…';
+    if(!(navigator.serviceWorker && navigator.serviceWorker.getRegistration)){
+      if(out) out.textContent = '当前浏览器不支持';
+      return;
+    }
+    navigator.serviceWorker.getRegistration().then(function(r){
+      if(!r) return null;
+      return r.update().then(function(){ return r; });
+    }).then(function(r){
+      if(!r){ if(out) out.textContent = '未注册离线缓存'; return; }
+      setTimeout(function(){
+        if(r.waiting || r.installing){
+          if(out) out.textContent = '有新版本';
+          toast('发现新版本，下拉刷新后生效');
+        }else{
+          if(out) out.textContent = '已是最新';
+        }
+      }, 1200);
+    }).catch(function(){
+      if(out) out.textContent = '检查失败';
+    });
+  }
+
+  function openLicSheet(){
+    openSheet([
+      { label: '字体：SIL Open Font License 1.1', fn: function(){} },
+      { label: '表情头像：Twemoji · CC-BY 4.0', fn: function(){} },
+      { label: '代码：MIT（仅学习演示用）', fn: function(){} }
+    ]);
+  }
+
   function openThemeSheet(){
     openSheet([
       { label: '跟随系统', fn: function(){ setTheme('auto'); } },
@@ -5176,13 +5899,19 @@ try{
   /* 清本地缓存：只清「消息缓存 / 表情最近使用」这些能重建的东西。
      注意别清 jw_hidden_convs（那是用户主动删掉的会话，清了会全部长回来），
      也别碰 jw_sess（清了等于登出）。消息缓存本来就只在内存里，不落 localStorage。 */
+  /* 只清「能从服务端重新拿回来」的东西。
+     两个绝对不能清的：
+       ① S.deletedIds —— 我主动删掉的消息黑名单。清了之后这些消息会从服务端
+          重新拉回来，用户会以为「删除功能坏了」；
+       ② jw_hidden_convs —— 我主动从列表里删掉的会话。清了会全部长回来。 */
   function clearLocalCache(){
     openSheet([{ label: '确定清除（不会退出登录）', danger: true, fn: function(){
       S.msgCache = {};
       S.readMark = {};
-      S.deletedIds = {};
+      lastUnread = -1;              /* 重算未读基线，否则下一次轮询会误报新消息 */
       try{ localStorage.removeItem('jw_emoji_recent'); }catch(e){}
       emoCat = '常用';
+      renderStorage();
       toast('缓存清掉了');
     } }]);
   }
@@ -5456,6 +6185,9 @@ try{
   document.addEventListener('visibilitychange', function(){
     /* 录音时切后台 / 来电：立刻收掉，别在后台一直录着（免得上行和麦克风被占住） */
     if(document.hidden){ if(S.rec) cancelRec(); return; }
+    /* 回到前台时标题要还原成「果冻微信」：后台时它带着未读数字，
+       不还原的话用户会一直看着「(3) 新消息」这种陈旧状态。 */
+    paintTitle();
     if(!S.sess) return;
     var jobs = [];
     if(S.screen === 'chatdetail' && S.cur){
@@ -5481,6 +6213,12 @@ try{
     /* 主题要在第一帧之前就定下来，否则深色用户会先看到一屏亮白再变黑 */
     S.theme = store('jw_theme') || 'auto';
     applyTheme();
+    /* 偏好必须在首屏渲染前落地：字体和背景是纯外观，
+       等 afterAuth 回来再设的话，用户会先看到一屏默认外观再跳变。 */
+    loadPrefs();
+    applyFont();
+    applyChatBg();
+    applyDiscover();
     autoGrow(); refreshSend();
     syncOnline();
     if(S.sess && S.sess.user && S.sess.user.id){
@@ -5552,7 +6290,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.18:46';
+    var BUILD='1029.19:23';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
