@@ -185,6 +185,8 @@
   .cell:last-child{border-bottom:none;}
   .cell:active{background:var(--soft);}
   .cell .nm{flex:1;font-weight:700;font-size:14.5px;}
+  /* 「我」页的果冻号：等宽一点、灰一点，像微信号那样只是个被动展示的值 */
+  .cell .jval{font-size:13px;font-weight:800;color:#8a80a0;letter-spacing:1px;font-variant-numeric:tabular-nums;}
   .chev{color:#c6bdd6;font-weight:800;font-size:16px;}
 
   /* moments */
@@ -400,7 +402,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.16:08</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.16:18</div>
         </div>
       </div>
     </section>
@@ -583,7 +585,7 @@
       </div>
       <div class="body">
         <div class="fwrap">
-          <div class="fnote">别人申请加你为好友时会出现在这里</div>
+          <div class="fnote">收到的申请、你发出去还没通过的都在这里</div>
           <div id="reqList"></div>
           <div class="empty" id="reqEmpty" style="display:none">
             <div class="eico">📭</div>
@@ -690,7 +692,7 @@
           <img class="bigava" id="meAva" data-k="s_ico_hero" alt="">
           <div style="flex:1;min-width:0;">
             <div class="nm2" id="meName">我的萌将</div>
-            <div class="wid" id="meMail">未登录</div>
+            <div class="wid"><span id="meMail">未登录</span><span class="jcopy" id="btnCopyJelly2">复制</span></div>
           </div>
           <div class="chev" style="color:#ffffffcc;font-size:18px;">›</div>
         </div>
@@ -699,7 +701,10 @@
           <div class="stat"><div class="n" id="stRooms">0</div><div class="l">会话</div></div>
           <div class="stat"><div class="n" id="stUnread">0</div><div class="l">未读</div></div>
         </div>
-        <div class="card"><div class="cell" id="cellAddFriendM"><div class="chip" style="background:var(--pink)">👋</div><div class="nm">添加朋友</div><div class="chev">›</div></div></div>
+        <div class="card">
+          <div class="cell" id="cellMyJelly"><div class="chip" style="background:var(--sky)">🆔</div><div class="nm">我的果冻号</div><div class="jval" id="meJellyVal">-</div><div class="chev">›</div></div>
+          <div class="cell" id="cellAddFriendM"><div class="chip" style="background:var(--pink)">👋</div><div class="nm">添加朋友</div><div class="chev">›</div></div>
+        </div>
         <div class="card">
           <div class="cell"><div class="chip" style="background:var(--yellow)">⭐</div><div class="nm">收藏</div><div class="chev">›</div></div>
           <div class="cell"><div class="chip" style="background:var(--pink)">📸</div><div class="nm">朋友圈</div><div class="chev">›</div></div>
@@ -707,7 +712,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.16:08</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.16:18</div>
       </div>
     </section>
 
@@ -759,9 +764,12 @@
     /* 服务端降级开关：数据库还没跑对应迁移时置 true，前端自动退回旧接口/旧字段 */
     noJelly:  false,      /* profiles 没有 jelly_id 列 */
     noFindV2: false,      /* 没有 find_user_v2 / send_friend_request_v2 */
+    noOutReq: false,      /* 没有 outgoing_requests（P3b 未执行） */
     convs:   [],          /* list_conversations 结果 */
     friends: [],          /* list_friends 结果 */
-    reqs:    [],          /* incoming_requests 结果 */
+    reqs:    [],          /* incoming_requests 结果（别人申请加我） */
+    outReqs: [],          /* outgoing_requests 结果（我发出的，含状态） */
+    lastKey: '',          /* 上次在「添加朋友」搜的凭据，重进页面时用它刷新状态 */
     cur: null,            /* 当前会话 */
     lastId: 0,            /* 当前会话最后一条已确认消息 id（增量拉取游标） */
     lastAt: null,         /* 当前会话最后一条消息的服务器时间（已读位点） */
@@ -1038,9 +1046,24 @@
       S.friends = rows || []; return S.friends;
     });
   }
+  /* 「新的朋友」= 收到的申请（incoming_requests）+ 我发出的申请（outgoing_requests）。
+     后者让用户能看到对方到底通过了没有，而不是永远停在「已申请，等通过」。
+     outgoing_requests 还没部署时静默降级，只显示收到的。 */
   function loadRequests(){
-    return api('/rest/v1/rpc/incoming_requests', { method: 'POST', body: {} }).then(function(rows){
-      S.reqs = rows || []; return S.reqs;
+    var pOut = S.noOutReq
+      ? Promise.resolve([])
+      : api('/rest/v1/rpc/outgoing_requests', { method: 'POST', body: {} }).catch(function(e){
+          /* 404 / 400 = 函数不存在，锁死降级，别每轮轮询都失败一次 */
+          if(e && (e.status === 400 || e.status === 404)) S.noOutReq = true;
+          return [];
+        });
+    return Promise.all([
+      api('/rest/v1/rpc/incoming_requests', { method: 'POST', body: {} }).catch(function(){ return []; }),
+      pOut
+    ]).then(function(r){
+      S.reqs = (r[0] || []).map(function(x){ x.dir = 'in'; return x; });
+      S.outReqs = (r[1] || []).map(function(x){ x.dir = 'out'; return x; });
+      return S.reqs;
     });
   }
 
@@ -1321,24 +1344,57 @@
     var box = $('#reqList'); if(!box) return;
     box.innerHTML = '';
     var empty = $('#reqEmpty');
-    if(!S.reqs.length){ if(empty) empty.style.display = 'block'; updateReqBadge(); return; }
+
+    /* 收到 + 发出混排，按申请时间倒序 —— 和微信「新的朋友」一样是同一个列表，
+       区别只在右边缘：收到的给「通过/拒绝」，发出的显示自己的申请走到哪一步了 */
+    var all = S.reqs.concat(S.outReqs || []);
+    all.sort(function(a, b){
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
+
+    if(!all.length){ if(empty) empty.style.display = 'block'; updateReqBadge(); return; }
     if(empty) empty.style.display = 'none';
 
-    S.reqs.forEach(function(r){
+    all.forEach(function(r){
       var row = el('div', 'req');
       row.dataset.rid = r.id;
       var ava = el('div', 'ava'); ava.appendChild(avaImg(r.avatar));
       var mid = el('div', 'mid');
       mid.appendChild(el('div', 'nm', r.nickname || '有人'));
-      mid.appendChild(el('div', 'rmsg', r.message ? ('「' + r.message + '」') : (r.email_masked || '想加你为好友')));
       var ops = el('div', 'ops');
-      var bYes = el('button', 'mini-btn', '通过');
-      bYes.type = 'button';
-      bYes.addEventListener('click', function(){ acceptReq(r); });
-      var bNo = el('button', 'mini-btn ghost', '拒绝');
-      bNo.type = 'button';
-      bNo.addEventListener('click', function(){ rejectReq(r); });
-      ops.appendChild(bYes); ops.appendChild(bNo);
+
+      if(r.dir === 'out'){
+        /* 我发出的：附言是自己写的，没必要再显示一遍，这里换成状态 */
+        mid.appendChild(el('div', 'rmsg', r.status === 'accepted' ? '已添加，可以聊天了' : '等待对方验证'));
+        if(r.status === 'accepted'){
+          var bChat = el('button', 'mini-btn', '发消息');
+          bChat.type = 'button';
+          bChat.addEventListener('click', function(){ openFriend({ user_id: r.other_id, conv_id: r.conv_id }); });
+          ops.appendChild(bChat);
+        }else{
+          var bWait = el('button', 'mini-btn ghost', '等待验证');
+          bWait.type = 'button';
+          /* 不用退出去重进，点一下就地重查 */
+          bWait.addEventListener('click', function(){
+            loadRequests().then(function(){
+              renderRequests();
+              var now = S.outReqs.filter(function(x){ return String(x.id) === String(r.id); })[0];
+              toast(now && now.status === 'accepted' ? '通过啦，快聊 ✧' : '对方还没通过，过会儿再看看');
+            }).catch(function(e){ toast(friendly(e.message)); });
+          });
+          ops.appendChild(bWait);
+        }
+      }else{
+        mid.appendChild(el('div', 'rmsg', r.message ? ('「' + r.message + '」') : (r.email_masked || '想加你为好友')));
+        var bYes = el('button', 'mini-btn', '通过');
+        bYes.type = 'button';
+        bYes.addEventListener('click', function(){ acceptReq(r); });
+        var bNo = el('button', 'mini-btn ghost', '拒绝');
+        bNo.type = 'button';
+        bNo.addEventListener('click', function(){ rejectReq(r); });
+        ops.appendChild(bYes); ops.appendChild(bNo);
+      }
+
       row.appendChild(ava); row.appendChild(mid); row.appendChild(ops);
       box.appendChild(row);
     });
@@ -2737,23 +2793,29 @@
     return 'bad';
   }
 
-  function searchUser(){
+  function searchUser(silent){
     var key = (($('#iSearchKey') || {}).value || '').trim();
     var err = $('#aErr'), box = $('#hitBox');
     var kind = keyKind(key);
 
-    if(kind === 'empty'){ if(err) err.textContent = '输入果冻号、手机号或邮箱'; return; }
+    if(kind === 'empty'){
+      if(err) err.textContent = silent ? '' : '输入果冻号、手机号或邮箱';
+      return;
+    }
     if(kind === 'bad'){
-      if(err) err.textContent = /^[0-9]+$/.test(key)
+      if(!silent && err) err.textContent = /^[0-9]+$/.test(key)
         ? '果冻号是 7 位数字，手机号是 11 位'
         : '试试对方的 7 位果冻号、11 位手机号或邮箱';
       return;
     }
+    S.lastKey = key;
     if(err) err.textContent = '';
-    if(box) box.innerHTML = '<div class="fnote">查找中…</div>';
+    /* silent：重进页面时的后台自动刷新，不能闪「查找中…」，否则像用户在重新搜 */
+    if(!silent && box) box.innerHTML = '<div class="fnote">查找中…</div>';
 
     findUser(key, kind).then(function(u){
       if(!u){
+        if(silent) return;              /* 静默刷新时不把上一次的命中清掉 */
         if(box) box.innerHTML = '';
         if(err) err.textContent = kind === 'mail' ? '没找到这个邮箱，让对方先注册果冻微信'
           : kind === 'phone' ? '没找到这个手机号，让对方先注册果冻微信'
@@ -2762,9 +2824,21 @@
       }
       renderHit(u, key);
     }).catch(function(e){
+      if(silent) return;
       if(box) box.innerHTML = '';
       if(err) err.textContent = friendly(e.message);
     });
+  }
+
+  /* 重进「添加朋友」页时悄悄把上次查到的那个人的状态刷一遍。
+     用户抱怨的「申请状态没更新」就是这个：DOM 留着上次的卡片，
+     但对方这会儿可能已经点通过了，按钮还停在「已申请，等通过」。 */
+  function refreshHit(){
+    var box = $('#hitBox');
+    if(!box || !box.firstChild) return;                    /* 本来就没搜过，别自作多情 */
+    var inp = $('#iSearchKey');
+    if(inp && !inp.value && S.lastKey) inp.value = S.lastKey;
+    searchUser(true);
   }
 
   /* 新 RPC 还没部署时自动退回「只认邮箱」的老接口 —— 加好友不能整个挂掉 */
@@ -2890,6 +2964,8 @@
     var m = $('#meMail');
     if(m) m.textContent = (S.me.jelly_id ? '果冻号 ' + S.me.jelly_id : '果冻号生成中')
       + (S.me.email ? ' · ' + maskEmail(S.me.email) : '');
+    /* 「我」页列表里那一行，点一下就能复制——用户找「我的号」一般点这里 */
+    var jv = $('#meJellyVal'); if(jv) jv.textContent = S.me.jelly_id || '生成中';
     var ava = $('#meAva');
     if(ava){ ava.removeAttribute('src'); ava.setAttribute('data-k', pickKey(S.me.avatar)); }
     renderJellyHint();
@@ -2900,12 +2976,14 @@
     if(window.__fillImg) window.__fillImg();
   }
 
-  /* 添加朋友页顶部那句「你的果冻号：xxxxxxx」*/
+  /* 添加朋友页顶部那句「你的果冻号：xxxxxxx」+「我」页头部的复制胶囊 */
   function renderJellyHint(){
     var h = $('#myJellyHint');
     if(h) h.textContent = S.me.jelly_id || '待生成';
-    var b = $('#btnCopyJelly');
-    if(b) b.style.display = S.me.jelly_id ? 'inline-block' : 'none';
+    ['#btnCopyJelly', '#btnCopyJelly2'].forEach(function(sel){
+      var b = $(sel);
+      if(b) b.style.display = S.me.jelly_id ? 'inline-block' : 'none';
+    });
   }
 
   function renderAvaPick(){
@@ -2966,8 +3044,12 @@
     stopChatPoll();
     $('#tabbar').style.display = 'none';
     goScreen(name);
-    /* 进「添加朋友」时把果冻号刷一下：那里要展示「你的果冻号」给用户抄 */
-    if(name === 'addfriend') renderJellyHint();
+    /* 进「添加朋友」时把果冻号刷一下：那里要展示「你的果冻号」给用户抄。
+       顺手把上次查到的那个人的关系状态重查一遍——对方可能刚好通过了。 */
+    if(name === 'addfriend'){
+      renderJellyHint();
+      refreshHit();
+    }
     var b = $('.screen.active .body'); if(b) b.scrollTop = 0;
   }
 
@@ -3429,12 +3511,17 @@
   bind('#iSearchKey', 'keydown', function(e){
     if(e.key === 'Enter'){ e.preventDefault(); searchUser(); }
   });
-  /* 果冻号是给朋友看的，得能一键复制发出去 */
-  bind('#btnCopyJelly', 'click', function(){
+  /* 果冻号是给朋友看的，得能一键复制发出去。
+     「我」页头部那个胶囊在 meHead 里面，点击会冒泡去开资料页，所以必须掐掉冒泡。 */
+  function copyJelly(e){
+    if(e && e.stopPropagation) e.stopPropagation();
     if(!S.me.jelly_id){ toast('果冻号还没生成，稍后再试'); return; }
     copyText(S.me.jelly_id);
     toast('果冻号已复制，发给朋友就能加你 ✧', 2200);
-  });
+  }
+  bind('#btnCopyJelly', 'click', copyJelly);
+  bind('#btnCopyJelly2', 'click', copyJelly);
+  bind('#cellMyJelly', 'click', copyJelly);
   bind('#iFriendFilter', 'input', function(){ S.filter = this.value; renderFriends(); });
   bind('#mask', 'click', function(){ closeSheet(); });
   bind('#btnChatCode', 'click', function(){
@@ -3548,7 +3635,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.16:08';
+    var BUILD='1029.16:18';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
