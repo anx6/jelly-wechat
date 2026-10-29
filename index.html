@@ -447,6 +447,24 @@
   .skrow{height:70px;margin:8px 0;border-radius:20px;border:3px solid #e6dff0;background:linear-gradient(90deg,#f0eaf6 25%,#faf7fd 50%,#f0eaf6 75%);background-size:200% 100%;animation:sk 1.3s linear infinite;}
   .banner{margin:8px 14px;padding:9px 12px;border:3px solid var(--ink);border-radius:14px;background:var(--yellow);font-size:12px;font-weight:800;line-height:1.5;box-shadow:3px 3px 0 rgba(26,26,46,.18);}
   .banner.warn{background:#ffd9e7;}
+
+  /* 群公告条（FR-405）：默认压两行，点一下在条内展开全文（不再跳一层详情页）。
+     flex-shrink:0 是必须的 —— .screen 是 flex column，不写会被下方 .body 挤扁。 */
+  .annbar{display:flex;align-items:flex-start;gap:8px;margin:0 12px 8px;padding:9px 11px;
+    background:var(--card2);border:3px solid var(--ink);border-radius:14px;
+    box-shadow:3px 3px 0 var(--yellow);flex-shrink:0;}
+  .annbar .anic{font-size:14px;line-height:1.25;flex-shrink:0;}
+  .annbar .anm{flex:1;min-width:0;cursor:pointer;}
+  .annbar .antt{font-size:10.5px;font-weight:800;color:var(--dim);letter-spacing:.5px;}
+  .annbar .antx{font-size:12.5px;font-weight:700;line-height:1.55;color:var(--txt2);margin-top:2px;
+    white-space:pre-line;word-break:break-word;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .annbar.open .antx{-webkit-line-clamp:unset;max-height:38vh;overflow-y:auto;}
+  .annbar .anx{flex-shrink:0;width:21px;height:21px;display:flex;align-items:center;justify-content:center;
+    border-radius:50%;font-size:11px;font-weight:800;color:var(--dim);}
+  .annbar .anx:active{background:var(--skel);}
+  /* 自己发的公告用一种淡紫底区分「这是我写的」 */
+  .annbar.mine{box-shadow:3px 3px 0 var(--purple);}
   .msg.pending .bubble{opacity:.55;}
   .msg .fail{display:block;font-size:10.5px;font-weight:800;color:#fff;background:var(--ink);border-radius:8px;padding:3px 7px;margin-top:6px;text-align:center;}
   .msg.in .fail{color:var(--pink);background:#ffe1ee;}
@@ -612,7 +630,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1029.19:38';
+window.__BUILD = '1029.19:49';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -650,7 +668,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.19:38</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.19:49</div>
         </div>
       </div>
     </section>
@@ -715,6 +733,15 @@ try{
         <div class="back" data-back>‹</div>
         <div class="cttl" id="chatTitle">聊天</div>
         <div class="ico-btn" id="btnChatCode">⌗</div>
+      </div>
+      <!-- 群公告条（FR-405）：放在 head 与滚动区之间，这样它吸顶不随消息滚走 -->
+      <div class="annbar" id="chatAnn" style="display:none">
+        <div class="anic">📢</div>
+        <div class="anm">
+          <div class="antt">群公告</div>
+          <div class="antx" id="chatAnnText"></div>
+        </div>
+        <div class="anx" id="chatAnnClose" role="button" aria-label="关闭公告">✕</div>
       </div>
       <div class="body">
         <div class="banner" id="chatBanner" style="display:none"></div>
@@ -816,6 +843,8 @@ try{
         <div class="gmember" id="gMembers"></div>
         <div class="card" style="margin:4px 12px 12px;">
           <div class="cell" id="cellRenameGroup"><div class="nm">群聊名称</div><div class="gval" id="gNameVal">-</div><div class="chev">›</div></div>
+          <div class="cell" id="cellGroupAnn"><div class="nm">群公告</div><div class="gval" id="gAnnVal">未设置</div><div class="chev">›</div></div>
+          <div class="cell" id="cellGroupNick"><div class="nm">我在本群的昵称</div><div class="gval" id="gNickVal">未设置</div><div class="chev">›</div></div>
           <div class="cell"><div class="nm">群邀请码</div><div class="gval" id="gCodeVal">-</div></div>
           <div class="cell"><div class="nm">群成员</div><div class="gval" id="gCountVal">-</div></div>
         </div>
@@ -1016,7 +1045,7 @@ try{
           <div class="cell" id="setDiscover"><div class="chip" style="background:var(--purple)">🧭</div><div class="nm">发现页管理</div><div class="chev">›</div></div>
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.19:38</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.19:49</div>
       </div>
     </section>
 
@@ -1126,7 +1155,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.19:38</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.19:49</div>
       </div>
     </section>
 
@@ -1271,6 +1300,7 @@ try{
     mComment: null,       /* 当前正在评论的目标：{ mid, parentId, replyTo, replyNick } */
     /* ---- 朋友圈周边（P3-2）---- */
     noMomentExtra: false, /* p3c 没跑：没有 moment_range / moment_cover / 红点 / get_moment */
+    noGroupPro: false,    /* p3d 没跑：群公告 / 管理员 / 群昵称 / 只看@我 全不可用 */
     momentUnread: 0,      /* 「发现」红点数字 */
     momentReadAt: 0,      /* 本地刚点过已读的时间戳（15 秒内压住服务端旧数字，防回闪） */
     momentRange: 'all',   /* 我的可见期设置 */
@@ -1527,6 +1557,20 @@ try{
     try{ localStorage.setItem('jw_hidden_convs', JSON.stringify(o)); }catch(e){}
   }
 
+  /* 群公告条的「已关闭」记录：cid -> 公告内容散列。
+     存内容散列而不是布尔，是为了「公告改了要重新弹」——
+     否则用户关过一次，新公告永远看不见。 */
+  function readAnnDismissed(){
+    try{
+      var o = JSON.parse(localStorage.getItem('jw_ann_off') || '{}');
+      return (o && typeof o === 'object') ? o : {};
+    }catch(e){ return {}; }
+  }
+
+  function writeAnnDismissed(o){
+    try{ localStorage.setItem('jw_ann_off', JSON.stringify(o)); }catch(e){}
+  }
+
   function copyText(t){
     function fallback(){
       var ta = document.createElement('textarea');
@@ -1666,6 +1710,10 @@ try{
 
   function loadConvs(){
     return api('/rest/v1/rpc/list_conversations', { method: 'POST', body: {} }).then(function(rows){
+      /* p3d 之前 list_conversations 不返回 only_mention：行里没这个键就说明
+         服务端没升级，锁死降级并把「只看 @我」入口藏掉 —— 不能让用户点进去
+         却每次报 400。和 mentions / jelly_id 用的是同一套探测思路。 */
+      if(rows && rows.length && rows[0].only_mention === undefined) S.noGroupPro = true;
       S.convs = (rows || []).map(function(c){
         return {
           id: c.id, ctype: c.ctype, title: c.title, code: c.room_code,
@@ -1683,7 +1731,9 @@ try{
           pinned_at: c.pinned_at, mute: !!c.mute,
           members: Number(c.member_count || 0), draft: c.draft || '',
           last_nick: c.last_sender_nick || '', gavatar: c.conv_avatar || '👥',
-          mention: Number(c.mention_unread || 0)
+          mention: Number(c.mention_unread || 0),
+          /* 「只看 @我」（FR-411）：只在 mute 时有意义，未升级时恒为 false */
+          onlyMention: !!c.only_mention
         };
       });
       /* 本地删除的会话：只要还没有比删除时刻更新的消息就继续隐藏；
@@ -1943,7 +1993,18 @@ try{
   function loadGroupMembers(cid){
     if(!cid) return Promise.resolve([]);
     return api('/rest/v1/rpc/list_group_members', { method: 'POST', body: { p_conv: cid } })
-      .then(function(rows){ gMembers = rows || []; return gMembers; })
+      .then(function(rows){
+        /* 群昵称（FR-408）优先：拿到就地把 nickname 换成本群昵称，
+           这样消息发送者、@ 面板、成员网格全都会自动用上，
+           不用在每个渲染点各写一次 coalesce。原始账号昵称仍留在 raw_nick 里备查。 */
+        gMembers = (rows || []).map(function(m){
+          if(!m) return m;
+          m.raw_nick = m.nickname;
+          if(m.group_nick) m.nickname = m.group_nick;
+          return m;
+        });
+        return gMembers;
+      })
       .catch(function(){ gMembers = []; return []; });
   }
 
@@ -1952,6 +2013,32 @@ try{
     return api('/rest/v1/rpc/get_group_info', { method: 'POST', body: { p_conv: cid } })
       .then(function(rows){ gInfo = (rows && rows[0]) || null; return gInfo; })
       .catch(function(){ gInfo = null; return null; });
+  }
+
+  /* ---------------- P3-6 群聊补全 ---------------- */
+
+  function setGroupAnnounce(cid, text){
+    return api('/rest/v1/rpc/set_group_announce', {
+      method: 'POST', body: { p_conv: cid, p_text: text || null }
+    });
+  }
+
+  function setGroupAdmin(cid, uid, on){
+    return api('/rest/v1/rpc/set_group_admin', {
+      method: 'POST', body: { p_conv: cid, p_user: uid, p_on: !!on }
+    });
+  }
+
+  function transferGroupOwner(cid, uid){
+    return api('/rest/v1/rpc/transfer_group_owner', {
+      method: 'POST', body: { p_conv: cid, p_user: uid }
+    });
+  }
+
+  function setGroupNick(cid, nick){
+    return api('/rest/v1/rpc/set_group_nick', {
+      method: 'POST', body: { p_conv: cid, p_nick: nick || null }
+    });
   }
 
   /* 标为未读：位点退到倒数第二条，交给服务端算 */
@@ -1970,18 +2057,35 @@ try{
   /* 删除会话：PRD 要求「仅删本地、对方无感、收到新消息重新出现」，
      所以记在 localStorage 里（cid -> 删除时刻），不碰服务端。 */
 
-  function setFlags(c, pinned, mute){
-    return api('/rest/v1/rpc/set_conversation_flags', {
-      method: 'POST',
-      body: { p_conv: c.id, p_pinned: pinned, p_mute: mute }
-    }).then(function(){
-      if(pinned !== null && pinned !== undefined) c.pinned_at = pinned ? new Date().toISOString() : null;
-      if(mute !== null && mute !== undefined) c.mute = !!mute;
-      return loadConvs();
-    }).then(function(){
-      renderConvs();
-      toast('设置好了');
-    }).catch(function(e){ toast(friendly(e.message)); });
+  function setFlags(c, pinned, mute, onlyMention){
+    var body = { p_conv: c.id, p_pinned: pinned, p_mute: mute };
+    /* 只传非 null 的那个：PostgREST 会把未出现的键当 null，
+       而服务端函数用 coalesce 判断「没给就保持原样」——
+       但如果整段降级到 old 分支，多传一个未知参数名会 400。 */
+    if(onlyMention !== null && onlyMention !== undefined) body.p_only_mention = !!onlyMention;
+    return api('/rest/v1/rpc/set_conversation_flags', { method: 'POST', body: body })
+      .then(function(){
+        if(pinned !== null && pinned !== undefined) c.pinned_at = pinned ? new Date().toISOString() : null;
+        if(mute !== null && mute !== undefined) c.mute = !!mute;
+        if(onlyMention !== null && onlyMention !== undefined) c.onlyMention = !!onlyMention;
+        return loadConvs();
+      }).then(function(){
+        renderConvs();
+        toast('设置好了');
+      }).catch(function(e){
+        /* p3d 没跑时服务端只有三参数版本，多传 p_only_mention 会 202。
+           这种情况重试一次「只改 mute」，别让用户点一下免打扰都失败。 */
+        if(body.p_only_mention !== undefined && e && (e.status === 400 || e.status === 404)){
+          S.noGroupPro = true;
+          delete body.p_only_mention;
+          return api('/rest/v1/rpc/set_conversation_flags', { method: 'POST', body: body })
+            .then(function(){
+              if(mute !== null && mute !== undefined) c.mute = !!mute;
+              return loadConvs();
+            }).then(function(){ renderConvs(); toast('设置好了'); });
+        }
+        toast(friendly(e.message));
+      });
   }
 
   function syncRecalled(cid){
@@ -2607,6 +2711,44 @@ try{
     return '已开启';
   }
 
+  /* ---------------- 会话角标与提醒（P3-6 FR-411） ---------------- */
+
+  /* 角标该画成什么。微信的规则比「免打扰就灰点」细一档：
+     免打扰的群被人 @ 了，仍然要给红色数字（否则用户永远看不到有人在叫他）。
+       普通会话      → 未读数
+       免打扰 + @我  → @ 我的条数（红色数字）
+       免打扰无 @    → 灰点
+     返回 {kind:'num'|'dot'|'none', text} */
+  function convBadge(c){
+    if(!c) return { kind: 'none', text: '' };
+    var u = Number(c.unread) || 0, m = Number(c.mention) || 0;
+    if(u <= 0 && m <= 0) return { kind: 'none', text: '' };
+    var n = 0;
+    if(!c.mute) n = u;
+    else if(m > 0) n = m;
+    else return { kind: 'dot', text: '' };
+    return { kind: 'num', text: n > 99 ? '99+' : String(n) };
+  }
+
+  /* 这条会话的未读该不该出声（提示音 / 震动 / 标题）。
+     免打扰 = 一律不出声；只有开了「只看 @我」才放行 @ 我 的那些。 */
+  function convAlerts(c){
+    if(!c) return false;
+    if(!c.mute) return true;
+    return !!c.onlyMention && (Number(c.mention) || 0) > 0;
+  }
+
+  /* 32 位字符串散列，只用来判断「群公告内容变没变」（本地记录关闭状态用）。
+     不做安全用途，碰撞了最多是公告条多弹一次，不影响正确性。 */
+  function simpleHash(s){
+    s = String(s == null ? '' : s);
+    var h = 5381;
+    for(var i = 0; i < s.length; i++){
+      h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    }
+    return (h >>> 0).toString(36);
+  }
+
 /* =====================================================================
    果冻微信 · VIEW
    视图层：所有 render* / paint* / 弹层 / DOM 复用。
@@ -2651,10 +2793,9 @@ try{
     /* 缓存子节点引用，后续更新只改文本，不重建结构 */
     row._refs = { nmText: nmText, t: tEl, ms: msEl, msAt: msAt, msTx: msTx };
 
-    if(c.unread > 0){
-      if(c.mute) row.appendChild(el('span', 'dot'));
-      else row.appendChild(el('div', 'badge', c.unread > 99 ? '99+' : String(c.unread)));
-    }
+    var bg0 = convBadge(c);
+    if(bg0.kind === 'num') row.appendChild(el('div', 'badge', bg0.text));
+    else if(bg0.kind === 'dot') row.appendChild(el('span', 'dot'));
 
     /* 点击时按 id 取最新会话对象，避免闭包里拿到轮询前的旧数据 */
     row.addEventListener('click', function(){
@@ -2684,14 +2825,12 @@ try{
     if(!!c.pinned_at !== row.classList.contains('pinned')) row.classList.toggle('pinned', !!c.pinned_at);
 
     var badge = row.querySelector('.badge'), dot = row.querySelector('.dot');
-    var wantBadge = c.unread > 0 && !c.mute;
-    var wantDot = c.unread > 0 && !!c.mute;
-    if(wantBadge){
+    var bg = convBadge(c);
+    if(bg.kind === 'num'){
       if(!badge){ badge = el('div', 'badge'); row.appendChild(badge); }
-      var txt = c.unread > 99 ? '99+' : String(c.unread);
-      if(badge.textContent !== txt) badge.textContent = txt;
+      if(badge.textContent !== bg.text) badge.textContent = bg.text;
       if(dot && dot.parentNode) dot.parentNode.removeChild(dot);
-    }else if(wantDot){
+    }else if(bg.kind === 'dot'){
       if(!dot){ dot = el('span', 'dot'); row.appendChild(dot); }
       if(badge && badge.parentNode) badge.parentNode.removeChild(badge);
     }else{
@@ -3329,6 +3468,36 @@ try{
     fillImgIn(sel);
   }
 
+  /* 群公告条（FR-405）：进群聊时按 gInfo.announce 渲染，吸顶在消息区上方。
+     用户点过 ✕ 之后，只有公告内容变了才重新弹 —— 靠内容散列记在本地，
+     否则用户关过一次，之后改了公告永远看不到。 */
+  function renderAnnBar(){
+    var bar = $('#chatAnn');
+    if(!bar) return;
+    var isGroup = !!(S.cur && S.cur.ctype === 'group');
+    var txt = (isGroup && gInfo && gInfo.announce || '').trim();
+    if(!isGroup || !txt || S.noGroupPro){ bar.style.display = 'none'; return; }
+    var off = readAnnDismissed();
+    if(off[S.cur.id] === simpleHash(txt)){ bar.style.display = 'none'; return; }
+    var t = $('#chatAnnText');
+    if(t) t.textContent = txt;
+    bar.classList.remove('open');
+    bar.classList.toggle('mine', !!(gInfo && gInfo.owner_id === S.sess.user.id));
+    bar.style.display = 'flex';
+  }
+
+  function closeAnnBar(){
+    var bar = $('#chatAnn');
+    if(!bar || !S.cur) return;
+    var txt = (gInfo && gInfo.announce || '').trim();
+    if(txt){
+      var off = readAnnDismissed();
+      off[S.cur.id] = simpleHash(txt);
+      writeAnnDismissed(off);
+    }
+    bar.style.display = 'none';
+  }
+
   function renderGroupInfo(){
     var box = $('#gMembers');
     if(box){
@@ -3361,6 +3530,18 @@ try{
       if($('#gNameVal')) $('#gNameVal').textContent = gInfo.gname || '群聊';
       if($('#gCountVal')) $('#gCountVal').textContent = (Number(gInfo.member_count) || gMembers.length) + ' 人';
       if($('#gCodeVal')) $('#gCodeVal').textContent = (S.cur && S.cur.code) || '-';
+      /* 公告与群昵称（P3-6）：旧后端没有 announce_at / my_nick，
+         用 S.noGroupPro 区分「没开通」和「真的没设置」——
+         一律显示「未设置」会让用户以为设置成功了但没保存。 */
+      var av = $('#gAnnVal');
+      if(av){
+        if(S.noGroupPro) av.textContent = '还没开通';
+        else if(!gInfo.announce) av.textContent = '未设置';
+        else av.textContent = gInfo.announce.length > 14
+          ? gInfo.announce.slice(0, 14) + '…' : gInfo.announce;
+      }
+      var nv = $('#gNickVal');
+      if(nv) nv.textContent = S.noGroupPro ? '还没开通' : (gInfo.my_nick || '未设置');
       var lb = $('#btnLeaveGroup');
       if(lb && lb.querySelector('span')){
         var mine = (gInfo.owner_id === S.sess.user.id);
@@ -3375,6 +3556,17 @@ try{
     var items = [];
     if(!m.is_me && m.role !== 'owner' && (myRole === 'owner' || (myRole === 'admin' && m.role === 'member'))){
       items.push({ label: '移出群聊', danger: true, fn: function(){ doRemoveMember(m); } });
+    }
+    /* 管理员 / 转让群主只有群主能操作，且不能对自己用（自己就是群主） */
+    if(!S.noGroupPro && myRole === 'owner' && !m.is_me && m.role !== 'owner'){
+      items.push({
+        label: m.role === 'admin' ? '撤销管理员' : '设为管理员',
+        fn: function(){ doSetAdmin(m, m.role !== 'admin'); }
+      });
+      items.push({ label: '转让群主', danger: true, fn: function(){ doTransferOwner(m); } });
+    }
+    if(!S.noGroupPro && m.is_me){
+      items.push({ label: '设置本群昵称', fn: function(){ doSetGroupNick(); } });
     }
     if(!items.length){ toast(m.nickname); return; }
     openSheet(items);
@@ -3488,6 +3680,15 @@ try{
       label: c.mute ? '关闭消息免打扰' : '消息免打扰',
       fn: function(){ setFlags(c, null, !c.mute); }
     });
+    /* 「只看 @我」只在免打扰已经开着时露出：它本质是免打扰的加强档，
+       不静音的会话本来就每条都响，摆出来只会让人以为点错了。
+       p3d 没跑时整项藏掉 —— 服务端没这个列，点了必然报错。 */
+    if(c.mute && c.ctype === 'group' && !S.noGroupPro){
+      items.push({
+        label: c.onlyMention ? '关闭「只看 @我」' : '只看 @我',
+        fn: function(){ setFlags(c, null, null, !c.onlyMention); }
+      });
+    }
     items.push({ label: '标为未读', fn: function(){ markConvUnread(c); } });
     items.push({ label: '删除该聊天', danger: true, fn: function(){ hideConv(c); } });
     openSheet(items);
@@ -4472,15 +4673,107 @@ try{
       .catch(function(e){ toast(friendly(e && e.message)); });
   }
 
+  /* ---------------- P3-6 群聊补全 ---------------- */
+
+  function refreshGroupUI(){
+    renderGroupInfo();
+    renderAnnBar();
+  }
+
+  function reloadGroup(cid){
+    return Promise.all([loadGroupMembers(cid), loadGroupInfo(cid)]).then(function(){
+      refreshGroupUI();
+      refreshSenders();
+    });
+  }
+
+  function doSetAdmin(m, on){
+    var cid = S.cur && S.cur.id;
+    if(!cid) return Promise.resolve();
+    if(S.noGroupPro){ toast('群管理需要先执行 p3d 迁移'); return Promise.resolve(); }
+    return setGroupAdmin(cid, m.user_id, on).then(function(){
+      toast(on ? '已设为管理员' : '已撤销管理员');
+      return reloadGroup(cid);
+    }).catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  /* 转让群主不可撤销（原群主直接降为普通成员），所以必须二次确认，
+     并且把对方的昵称写进按钮文案 —— 「确定转让」这种泛泛的确认很容易被顺手点掉。 */
+  function doTransferOwner(m){
+    var cid = S.cur && S.cur.id;
+    if(!cid) return Promise.resolve();
+    if(S.noGroupPro){ toast('群管理需要先执行 p3d 迁移'); return Promise.resolve(); }
+    openSheet([
+      { label: '确定把群主转让给「' + m.nickname + '」', danger: true, fn: function(){
+          transferGroupOwner(cid, m.user_id).then(function(){
+            toast('群主已转让');
+            return loadConvs().then(function(){ renderConvs(); return reloadGroup(cid); });
+          }).catch(function(e){ toast(friendly(e && e.message)); });
+        } }
+    ]);
+  }
+
+  function doSetGroupNick(){
+    var cid = S.cur && S.cur.id;
+    if(!cid) return Promise.resolve();
+    if(S.noGroupPro){ toast('群昵称需要先执行 p3d 迁移'); return Promise.resolve(); }
+    var old = (gInfo && gInfo.my_nick) || '';
+    var v = window.prompt('我在本群的昵称（留空恢复账号昵称，最多 16 字）', old);
+    if(v === null) return Promise.resolve();
+    v = String(v).trim();
+    if(v.length > 16){ toast('群昵称最多 16 个字'); return Promise.resolve(); }
+    return setGroupNick(cid, v).then(function(){
+      toast(v ? '群昵称已设置' : '已恢复账号昵称');
+      return reloadGroup(cid);
+    }).catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  function doEditAnnounce(){
+    var cid = S.cur && S.cur.id;
+    if(!cid || !gInfo) return Promise.resolve();
+    if(S.noGroupPro){ toast('群公告需要先执行 p3d 迁移'); return Promise.resolve(); }
+    var myRole = gInfo.my_role || 'member';
+    var isOwner = (gInfo.owner_id === S.sess.user.id);
+    if(!isOwner && myRole !== 'admin'){
+      /* 普通成员只能看。用底部菜单承载全文：公告最多 500 字，
+         直接塞进 toast 会一闪而过看不全。 */
+      if(gInfo.announce) openSheet([{ label: gInfo.announce, fn: function(){} }]);
+      else toast('只有群主和管理员能发布群公告');
+      return Promise.resolve();
+    }
+    var v = window.prompt('群公告（最多 500 字，留空即删除）', gInfo.announce || '');
+    if(v === null) return Promise.resolve();
+    v = String(v).trim();
+    if(v.length > 500){ toast('群公告最多 500 字'); return Promise.resolve(); }
+    return setGroupAnnounce(cid, v).then(function(){
+      toast(v ? '群公告已发布' : '群公告已清空');
+      return reloadGroup(cid).then(function(){
+        /* 自己刚发的公告，把本地「已关闭」标记清掉，让它立刻显示出来 */
+        if(v && S.cur){
+          var off = readAnnDismissed();
+          delete off[S.cur.id];
+          writeAnnDismissed(off);
+          renderAnnBar();
+        }
+      });
+    }).catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
   function doRemoveMember(m){
     var cid = S.cur && S.cur.id;
     if(!cid) return Promise.resolve();
-    return api('/rest/v1/rpc/remove_group_member', { method: 'POST', body: { p_conv: cid, p_user: m.user_id } })
-      .then(function(){
-        toast('已移出');
-        return Promise.all([loadGroupMembers(cid), loadGroupInfo(cid)]).then(function(){ renderGroupInfo(); });
-      })
-      .catch(function(e){ toast(friendly(e && e.message)); });
+    /* 踢人是不可撤销动作（对方会收到系统消息、会话直接消失），
+       必须二次确认，并且把名字写进按钮里防止点错人。 */
+    openSheet([
+      { label: '确定把「' + m.nickname + '」移出群聊', danger: true, fn: function(){
+          api('/rest/v1/rpc/remove_group_member', { method: 'POST', body: { p_conv: cid, p_user: m.user_id } })
+            .then(function(){
+              toast('已移出');
+              return Promise.all([loadGroupMembers(cid), loadGroupInfo(cid)]).then(function(){ renderGroupInfo(); });
+            })
+            .catch(function(e){ toast(friendly(e && e.message)); });
+        } }
+    ]);
   }
 
   function doRenameGroup(){
@@ -4563,9 +4856,18 @@ try{
     $('#chatTitle').style.cursor = isGroup ? 'pointer' : '';
     if(isGroup){
       gMembers = [];
+      /* gInfo 是全局的，换会话必须先清空 —— 不清的话从 A 群切到 B 群，
+         公告条会短暂显示 A 群的公告，看起来像串群。 */
+      gInfo = null;
+      renderAnnBar();
       loadGroupMembers(c.id).then(refreshSenders);
+      /* 公告条只依赖 gInfo.announce：单独拉一次群信息，
+         失败也不打扰用户（进群聊的主流程不能因为公告失败而卡住） */
+      loadGroupInfo(c.id).then(function(){ renderAnnBar(); }).catch(function(){});
     }else{
       gMembers = [];
+      gInfo = null;
+      renderAnnBar();
     }
     closeAtBox();
     var atBtn = $('#btnAt');
@@ -4949,6 +5251,20 @@ try{
     if(btnLeaveGroup) btnLeaveGroup.addEventListener('click', function(){ doLeaveGroup(); });
     var cellRename = $('#cellRenameGroup');
     if(cellRename) cellRename.addEventListener('click', function(){ doRenameGroup(); });
+    var cellAnn = $('#cellGroupAnn');
+    if(cellAnn) cellAnn.addEventListener('click', function(){ doEditAnnounce(); });
+    var cellNick = $('#cellGroupNick');
+    if(cellNick) cellNick.addEventListener('click', function(){ doSetGroupNick(); });
+    var annClose = $('#chatAnnClose');
+    if(annClose) annClose.addEventListener('click', function(e){
+      e.stopPropagation(); closeAnnBar();
+    });
+    /* 点公告条正文 = 就地展开 / 收起全文（不跳页，用户还在聊天上下文里） */
+    var annBar = $('#chatAnn');
+    if(annBar){
+      var annBody = annBar.querySelector('.anm');
+      if(annBody) annBody.addEventListener('click', function(){ annBar.classList.toggle('open'); });
+    }
     var btnAt = $('#btnAt');
     if(btnAt) btnAt.addEventListener('click', function(){ insertAtSign(); });
     var chatTitle = $('#chatTitle');
@@ -5317,13 +5633,21 @@ try{
   }
 
   /* ---------------- 未读跟踪：提醒 + 标题（P3-5） ---------------- */
-  var lastUnread = -1;
+  var lastUnread = -1;    /* 总未读：标题角标用 */
+  var lastSound  = -1;    /* 会出声的未读：只有它变多才响 */
 
   function trackUnread(list){
-    var t = 0;
-    (list || []).forEach(function(c){ t += (c.unread || 0); });
-    /* 首次加载（lastUnread < 0）不提醒：刚登录就看到列表，本来就没「新」消息 */
-    if(lastUnread >= 0 && t > lastUnread) notice();
+    var t = 0, s = 0;
+    (list || []).forEach(function(c){
+      var u = c.unread || 0;
+      t += u;
+      /* 免打扰 / 只看@我 的会话不进「会出声」的计数 ——
+         否则用户明明设了免打扰，群里一说话照样叮一声。 */
+      if(convAlerts(c)) s += u;
+    });
+    /* 首次加载（lastSound < 0）不提醒：刚登录就看到列表，本来就没「新」消息 */
+    if(lastSound >= 0 && s > lastSound) notice();
+    lastSound = s;
     lastUnread = t;
     paintTitle();
   }
@@ -5928,6 +6252,7 @@ try{
       S.msgCache = {};
       S.readMark = {};
       lastUnread = -1;              /* 重算未读基线，否则下一次轮询会误报新消息 */
+      lastSound = -1;
       try{ localStorage.removeItem('jw_emoji_recent'); }catch(e){}
       emoCat = '常用';
       renderStorage();
@@ -6309,7 +6634,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.19:38';
+    var BUILD='1029.19:49';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
