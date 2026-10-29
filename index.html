@@ -539,6 +539,13 @@
      它们的底色是黄的/绿的，跟着 --ink 变浅会直接看不见 */
   html.dark .send,html.dark .jcopy,html.dark .emotabs .et.on{color:#1a1a2e;}
   html.dark .msg.out .bubble,html.dark .lbtn,html.dark .lsw.on{color:#fff;}
+  /* 登录页：本来是粉黄蓝的浅渐变，深色下换成同色的夜间版；
+     标题是「白字 + 8 向描边」，描边用 var(--ink) 会跟着变浅糊成一团，这里钉死深色 */
+  html.dark .login{background:linear-gradient(165deg,#231b33 0%,#1b1a24 48%,#101c26 100%);}
+  html.dark .ltitle{color:#fff;
+    text-shadow:-3px 0 0 #0d0b12,3px 0 0 #0d0b12,0 -3px 0 #0d0b12,0 3px 0 #0d0b12,
+                 -3px -3px 0 #0d0b12,3px 3px 0 #0d0b12,-3px 3px 0 #0d0b12,3px -3px 0 #0d0b12,
+                 6px 7px 0 #ff2e8877;}
 </style>
 <!-- 主题要在首帧之前定下来，否则深色用户会先看到一屏亮白再变黑（FOUC） -->
 <script>
@@ -576,7 +583,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.18:27</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.18:30</div>
         </div>
       </div>
     </section>
@@ -937,7 +944,7 @@ try{
         <div class="card">
           <div class="cell" id="setClearCache"><div class="chip" style="background:var(--lime)">🧹</div><div class="nm">清除本地缓存</div><div class="mv">聊天记录缓存</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.18:27</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.18:30</div>
       </div>
     </section>
 
@@ -968,7 +975,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.18:27</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.18:30</div>
       </div>
     </section>
 
@@ -5525,7 +5532,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.18:27';
+    var BUILD='1029.18:30';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
