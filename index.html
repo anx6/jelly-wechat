@@ -759,7 +759,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1029.20:43';
+window.__BUILD = '1029.20:52';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -797,7 +797,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.20:43</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.20:52</div>
         </div>
       </div>
     </section>
@@ -975,6 +975,8 @@ try{
           <div class="cell" id="cellGroupAnn"><div class="nm">群公告</div><div class="gval" id="gAnnVal">未设置</div><div class="chev">›</div></div>
           <div class="cell" id="cellGroupNick"><div class="nm">我在本群的昵称</div><div class="gval" id="gNickVal">未设置</div><div class="chev">›</div></div>
           <div class="cell" id="cellGroupQr"><div class="nm">群二维码</div><div class="gval" id="gQrVal">扫码进群</div><div class="chev">›</div></div>
+          <div class="cell" id="cellJoinMode"><div class="nm">进群需要确认</div><div class="gval" id="gJoinVal">还没开通</div><div class="chev">›</div></div>
+          <div class="cell" id="cellJoinReq"><div class="nm">入群申请</div><div class="gval" id="gJoinReqVal">还没开通</div><div class="chev">›</div></div>
           <div class="cell"><div class="nm">群邀请码</div><div class="gval" id="gCodeVal">-</div></div>
           <div class="cell"><div class="nm">群成员</div><div class="gval" id="gCountVal">-</div></div>
         </div>
@@ -984,9 +986,23 @@ try{
       </div>
     </section>
 
-    <!-- ================= 新的朋友（好友申请） ================= -->
-    <section class="screen" data-screen="newfriends">
+    <!-- ================= 入群申请（FR-409 群主审核） ================= -->
+    <section class="screen" data-screen="joinreq">
       <div class="head">
+        <div class="back" data-back>‹</div>
+        <div class="cttl">入群申请</div>
+        <div style="width:34px"></div>
+      </div>
+      <div class="body">
+        <div class="fwrap">
+          <div class="fnote">同意后对方就能进群，能看到群里的历史消息<br>只有群主和管理员能看到这一页</div>
+          <div id="joinReqList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 新的朋友（好友申请） ================= -->
+    <section class="screen" data-screen="newfriends">      <div class="head">
         <div class="back" data-back>‹</div>
         <div class="cttl">新的朋友</div>
         <div class="ico-btn" id="btnAddFriend2">➕</div>
@@ -1251,7 +1267,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.20:43</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1029.20:52</div>
       </div>
     </section>
 
@@ -1411,7 +1427,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.20:43</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.20:52</div>
       </div>
     </section>
 
@@ -1582,6 +1598,11 @@ try{
     favs: [],             /* 已加载的收藏 */
     favTab: 'all',        /* all / text / image / voice / moment */
     favBusy: false,
+    /* ---- 扫码入群与群主审核（P3-10 FR-409 后半段）---- */
+    noJoin: false,        /* p3h 没跑：join_group_by_code / group_join_requests 都不存在 */
+    gJoin: null,          /* 当前群的入群设置 { need, canReview, pending } */
+    joinReqs: [],         /* 待审核的入群申请 */
+    joinBusy: false,      /* 审核中，防连点重复提交 */
     momentUnread: 0,      /* 「发现」红点数字 */
     momentReadAt: 0,      /* 本地刚点过已读的时间戳（15 秒内压住服务端旧数字，防回闪） */
     momentRange: 'all',   /* 我的可见期设置 */
@@ -2709,6 +2730,83 @@ try{
   function unblockUser(uid){
     if(S.noPrivacy) return Promise.reject(new Error('还没开通'));
     return api('/rest/v1/rpc/unblock_user', { method: 'POST', body: { p_uid: uid } });
+  }
+
+  /* ---------------- P3-10 扫码入群（FR-409 后半段） ---------------- */
+
+  /* p3h 没跑时这几个函数一个都不存在。共用一把锁：任意一个 404
+     就把 noJoin 锁死，之后不再发请求 —— 否则扫一次码弹一次红条。 */
+  function _joinGone(e){
+    return !!(e && (e.status === 404 || e.status === 400) &&
+      /PGRST202|does not exist|Could not find the function/i.test(
+        typeof e.message === 'string' ? e.message : JSON.stringify(e.data || {})));
+  }
+
+  /* 扫码进群的唯一入口。四种返回状态由服务端判定，前端不自己猜：
+       member 已在群里 / joined 已加入 / pending 等群主同意 */
+  function joinGroupByCode(key){
+    if(S.noJoin) return Promise.reject(new Error('扫码入群需要先执行 p3h 迁移'));
+    return api('/rest/v1/rpc/join_group_by_code', {
+      method: 'POST', body: { p_code: String(key || '').toUpperCase() }
+    }).then(function(rows){
+      var r = (rows && rows[0]) || {};
+      return { status: r.status || 'joined', convId: r.conv_id || null,
+               gname: r.gname || '群聊', need: !!r.need_approve };
+    }).catch(function(e){
+      if(_joinGone(e)) S.noJoin = true;
+      throw e;
+    });
+  }
+
+  /* 群信息页要用：是否需审核 + 我有多少条待审。非成员拿到 can_review=false */
+  function loadGroupJoin(cid){
+    if(S.noJoin || !cid) return Promise.resolve(null);
+    return api('/rest/v1/rpc/get_group_join', { method: 'POST', body: { p_conv: cid } })
+      .then(function(d){
+        var o = d || {};
+        return { need: !!o.need, canReview: !!o.can_review, pending: Number(o.pending) || 0 };
+      }).catch(function(e){
+        if(_joinGone(e)) S.noJoin = true;
+        throw e;
+      });
+  }
+
+  function setGroupJoinMode(cid, need){
+    if(S.noJoin) return Promise.reject(new Error('还没开通'));
+    return api('/rest/v1/rpc/set_group_join_mode', {
+      method: 'POST', body: { p_conv: cid, p_need: !!need }
+    }).catch(function(e){ if(_joinGone(e)) S.noJoin = true; throw e; });
+  }
+
+  function loadJoinRequests(cid){
+    if(S.noJoin || !cid) return Promise.resolve([]);
+    return api('/rest/v1/rpc/list_join_requests', { method: 'POST', body: { p_conv: cid } })
+      .then(function(rows){
+        return (rows || []).map(function(r){
+          return {
+            id: Number(r.id), userId: r.user_id, nickname: r.nickname || '有人',
+            avatar: r.avatar || 'ava_hero', jellyId: r.jelly_id || '',
+            message: r.message || '', at: r.created_at
+          };
+        });
+      }).catch(function(e){
+        if(_joinGone(e)) S.noJoin = true;
+        throw e;
+      });
+  }
+
+  function reviewJoinRequest(id, ok){
+    if(S.noJoin) return Promise.reject(new Error('还没开通'));
+    return api('/rest/v1/rpc/review_join_request', {
+      method: 'POST', body: { p_id: Number(id), p_ok: !!ok }
+    }).then(function(r){ return r || (ok ? 'accepted' : 'rejected'); })
+      .catch(function(e){ if(_joinGone(e)) S.noJoin = true; throw e; });
+  }
+
+  function cancelJoinRequest(cid){
+    if(S.noJoin || !cid) return Promise.resolve();
+    return api('/rest/v1/rpc/cancel_join_request', { method: 'POST', body: { p_conv: cid } })
+      .catch(function(e){ if(_joinGone(e)) S.noJoin = true; throw e; });
   }
 
 /* =====================================================================
@@ -4504,6 +4602,9 @@ try{
         lb.querySelector('span').textContent = mine ? (only ? '解散该群聊' : '退出并转让群主') : '退出群聊';
       }
     }
+    /* 入群设置那两格的数据是异步单独拉的（get_group_join），
+       所以这里只负责按当前 S.gJoin 画一遍，加载完由 app 层再调一次。 */
+    renderGroupJoin();
   }
 
   function memberMenu(m){
@@ -5272,6 +5373,72 @@ try{
       '拉黑后对方不能再加你为好友，也搜不到你。\n' +
       '取消拉黑后关系恢复，不用重新申请。'));
     box.appendChild(tip);
+  }
+
+  /* ---------------- P3-10 入群申请（FR-409 群主审核） ---------------- */
+
+  /* 群信息页那两格。p3h 没跑时给「还没开通」而不是空白 ——
+     空白会让人以为这两项本来就没有，跑去翻别的地方。 */
+  function renderGroupJoin(){
+    var mv = $('#gJoinVal'), rv = $('#gJoinReqVal');
+    var j = S.gJoin;
+    if(mv) mv.textContent = S.noJoin ? '还没开通' : (j ? (j.need ? '需要群主确认' : '扫码直接进群') : '…');
+    if(rv){
+      if(S.noJoin) rv.textContent = '还没开通';
+      else if(!j || !j.canReview) rv.textContent = '仅群主可见';
+      else rv.textContent = j.pending ? (j.pending + ' 条待处理') : '暂无申请';
+    }
+  }
+
+  function renderJoinReqs(){
+    var box = $('#joinReqList');
+    if(!box) return;
+    box.innerHTML = '';
+
+    if(S.noJoin){
+      box.appendChild(demoCard('还没开通', '入群审核要先建表',
+        '扫码进群与群主审核需要 group_join_requests 表和三个函数。\n' +
+        '在 Supabase 控制台执行 supabase_migration_p3h_joingroup.sql 之后\n' +
+        '回到这里刷新就能用，不用重新发布前端。'));
+      return;
+    }
+
+    var list = S.joinReqs || [];
+    if(!list.length){
+      var empty = el('div', 'dempty');
+      empty.appendChild(el('div', 'ph', '📭'));
+      empty.appendChild(el('div', 'esub',
+        '暂时没有人申请进群。\n把群二维码发出去，别人扫码后就会出现在这里。'));
+      box.appendChild(empty);
+      return;
+    }
+
+    list.forEach(function(r){
+      var row = el('div', 'req');
+      row.setAttribute('data-jid', r.id);
+      var ava = el('div', 'ava');
+      ava.appendChild(avaImg(r.avatar));
+      row.appendChild(ava);
+
+      var mid = el('div', 'mid');
+      mid.appendChild(el('div', 'nm', r.nickname));
+      mid.appendChild(el('div', 'rmsg',
+        (r.jellyId ? ('果冻号 ' + r.jellyId + ' · ') : '') + '想加入群聊'));
+
+      var ops = el('div', 'ops');
+      var bNo = el('button', 'mini-btn ghost', '拒绝');
+      bNo.type = 'button';
+      bNo.setAttribute('data-jyes', '0');
+      var bOk = el('button', 'mini-btn', '同意');
+      bOk.type = 'button';
+      bOk.setAttribute('data-jyes', '1');
+      ops.appendChild(bNo);
+      ops.appendChild(bOk);
+      mid.appendChild(ops);
+      row.appendChild(mid);
+      box.appendChild(row);
+    });
+    fillImgIn(box);
   }
 
   /* ---------------- 通知设置（P3-5 / FR-807） ---------------- */
@@ -6269,6 +6436,14 @@ try{
     goScreen('groupinfo');
     var box = $('#gMembers');
     if(box) box.innerHTML = '<div class="time" style="grid-column:1/-1">加载中…</div>';
+    /* 入群设置单独拉：p3h 没跑时这一步会 404，不能让它把整页 groupinfo
+       一起 catch 掉 —— 那样群名、成员、公告全都不显示了。 */
+    S.gJoin = null;
+    renderGroupJoin();
+    loadGroupJoin(cid).then(function(j){
+      S.gJoin = j;
+      renderGroupJoin();
+    }).catch(function(){ /* noJoin 已在 api 层锁死 */ });
     return Promise.all([loadGroupMembers(cid), loadGroupInfo(cid)])
       .then(renderGroupInfo)
       .catch(function(e){ toast(friendly(e && e.message)); });
@@ -6752,6 +6927,13 @@ try{
       }
       return;
     }
+    /* 入群申请页是从群信息里长出来的一层：回群信息，并把聊天轮询接回来 */
+    if(S.screen === 'joinreq'){
+      goScreen('groupinfo');
+      if(S.cur) startChatPoll();
+      renderGroupInfo();
+      return;
+    }
     if(S.screen === 'groupinfo'){
       goScreen('chatdetail');
       if(S.cur) startChatPoll();
@@ -6874,6 +7056,17 @@ try{
     if(cellNick) cellNick.addEventListener('click', function(){ doSetGroupNick(); });
     var cellGQr = $('#cellGroupQr');
     if(cellGQr) cellGQr.addEventListener('click', function(){ openQrPage('group'); });
+    /* P3-10 入群设置与审核 */
+    bind('#cellJoinMode', 'click', openJoinMode);
+    bind('#cellJoinReq', 'click', openJoinReqs);
+    /* 申请行是每次重渲染重建的，委托在容器上 */
+    bind('#joinReqList', 'click', function(e){
+      var b = e.target && e.target.closest ? e.target.closest('[data-jyes]') : null;
+      if(!b) return;
+      var row = b.closest('.req');
+      if(!row) return;
+      doReviewJoin(Number(row.getAttribute('data-jid')), b.getAttribute('data-jyes') === '1');
+    });
     var annClose = $('#chatAnnClose');
     if(annClose) annClose.addEventListener('click', function(e){
       e.stopPropagation(); closeAnnBar();
@@ -8410,7 +8603,7 @@ try{
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.20:43';
+    var BUILD='1029.20:52';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
@@ -8622,10 +8815,9 @@ try{
     }
     stopScan();
     if(r.type === 'group'){
-      /* 群码「扫码即入群」还没做（FR-409 排在下一批）：
-         与其把用户丢到一个搜不到东西的页面，不如直说。 */
-      toast('扫到群邀请码 ' + r.key + '，扫码入群还没开放');
-      return Promise.resolve();
+      /* 扫到群码 = 申请/加入。判断「要不要审核」「是不是已经在群里」
+         一律交给服务端：前端的 S.convs 可能是几分钟前的快照。 */
+      return doJoinGroup(r.key);
     }
     /* 果冻号：跳到添加朋友页并自动搜一次。
        注意 searchUser() 是从输入框读关键词、而且不返回 Promise，
@@ -8654,6 +8846,117 @@ try{
     }).catch(function(e){
       toast('识别失败：' + ((e && e.message) || '图片读不出来'));
     });
+  }
+
+  /* ================= P3-10 扫码入群与群主审核（FR-409 后半段） ================= */
+
+  /* 扫到群码之后的所有分支都在这里。
+     四种状态由 join_group_by_code 判定，前端只负责显示 ——
+     「要不要审核 / 是不是已经在群里 / 满没满员」前端判断不了，
+     手里的 S.convs 是几分钟前的快照。 */
+  function doJoinGroup(key){
+    if(S.noJoin){
+      renderScanHint('扫码进群还没开通\n要先在数据库里执行 p3h 迁移', true);
+      toast('扫码入群还没开通');
+      return Promise.resolve();
+    }
+    renderScanHint('正在加入…', false);
+    return joinGroupByCode(key).then(function(r){
+      if(r.status === 'pending'){
+        renderScanHint('已提交申请\n等群主同意后就能进群', false);
+        toast('申请已提交，等群主同意');
+        return;
+      }
+      var mine = (r.status === 'member');
+      renderScanHint((mine ? '你已经在「' : '已加入「') + r.gname + '」', false);
+      toast(mine ? '你已经在群里了' : '加入成功');
+      return loadConvs().then(function(){
+        var c = r.convId ? convById(r.convId) : null;
+        if(c) return openConv(c);
+        /* 加进去了但列表里没有：多半是 list_conversations 的缓存还没更新，
+           不要假装成功，如实说一句。 */
+        toast('进群了，回到消息列表看一眼');
+      });
+    }).catch(function(e){
+      /* 第一次失败时 api 层才把 noJoin 锁死（它得先真打一次才知道表没建），
+         所以这里要再判一次：把 SQL 内部报错原样贴给用户没有意义。 */
+      if(S.noJoin){
+        renderScanHint('扫码进群还没开通\n要先在数据库里执行 p3h 迁移', true);
+        toast('扫码入群还没开通');
+        return;
+      }
+      var m = friendly(e && e.message);
+      renderScanHint(m, true);
+      toast(m);
+    });
+  }
+
+  /* 「进群需要确认」开关。群主/管理员才有这一行，普通成员点进来直接拒绝，
+     不做「看起来能点但其实失败」的假开关。 */
+  function openJoinMode(){
+    var cid = S.cur && S.cur.id;
+    if(!cid) return Promise.resolve();
+    if(S.noJoin){ toast('进群设置需要先执行 p3h 迁移'); return Promise.resolve(); }
+    var j = S.gJoin;
+    if(!j || !j.canReview){ toast('只有群主或管理员能改这个'); return Promise.resolve(); }
+    openSheet([
+      { label: (j.need ? '✓ ' : '') + '扫码后需群主确认', fn: function(){ doSetJoinMode(cid, true); } },
+      { label: (!j.need ? '✓ ' : '') + '扫码后直接进群', fn: function(){ doSetJoinMode(cid, false); } }
+    ]);
+  }
+
+  function doSetJoinMode(cid, need){
+    if(S.gJoin && !!S.gJoin.need === !!need) return Promise.resolve();
+    return setGroupJoinMode(cid, need).then(function(){
+      if(!S.gJoin) S.gJoin = { need: !!need, canReview: true, pending: 0 };
+      else S.gJoin.need = !!need;
+      renderGroupJoin();
+      toast(need ? '现在需要群主确认了' : '现在扫码直接进群');
+    }).catch(function(e){ toast(friendly(e && e.message)); });
+  }
+
+  function openJoinReqs(){
+    var cid = S.cur && S.cur.id;
+    if(!cid) return Promise.resolve();
+    if(S.noJoin){
+      goPage('joinreq', 'groupinfo');
+      renderJoinReqs();
+      return Promise.resolve();
+    }
+    if(S.gJoin && !S.gJoin.canReview){ toast('只有群主或管理员能看入群申请'); return Promise.resolve(); }
+    goPage('joinreq', 'groupinfo');
+    S.joinReqs = [];
+    renderJoinReqs();
+    return loadJoinRequests(cid).then(function(list){
+      S.joinReqs = list;
+      renderJoinReqs();
+      if(S.gJoin) S.gJoin.pending = list.length;
+      renderGroupJoin();
+    }).catch(function(e){
+      renderJoinReqs();
+      if(!S.noJoin) toast(friendly(e && e.message));
+    });
+  }
+
+  /* 同意 / 拒绝。joinBusy 是必要的：这两个按钮挨在一起，
+     连续点两下会发两次请求，第二次必然报「这条申请已经处理过了」。 */
+  function doReviewJoin(id, ok){
+    var cid = S.cur && S.cur.id;
+    if(!cid || S.joinBusy) return Promise.resolve();
+    S.joinBusy = true;
+    return reviewJoinRequest(id, ok).then(function(){
+      S.joinReqs = (S.joinReqs || []).filter(function(x){ return x.id !== id; });
+      if(S.gJoin) S.gJoin.pending = Math.max(0, (S.gJoin.pending || 1) - 1);
+      renderJoinReqs();
+      renderGroupJoin();
+      toast(ok ? '已同意，对方进群了' : '已拒绝');
+      /* 同意后成员数变了，把成员网格和群人数一起刷新 */
+      if(ok){
+        return reloadGroup(cid).catch(function(){});
+      }
+    }).catch(function(e){
+      toast(friendly(e && e.message));
+    }).then(function(){ S.joinBusy = false; });
   }
 
   /* ================= P3-7 演示页（FR-703~707） ================= */
