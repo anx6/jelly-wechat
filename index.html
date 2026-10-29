@@ -394,7 +394,7 @@
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1029.14:51</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1029.15:09</div>
         </div>
       </div>
     </section>
@@ -701,7 +701,7 @@
         </div>
         <div class="card"><div class="cell"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.14:51</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:#b3aac4;padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1029.15:09</div>
       </div>
     </section>
 
@@ -944,6 +944,14 @@
     if(/消息太长/i.test(m)) return '消息太长了，最多 2000 字';
     if(/消息不能为空/i.test(m)) return '说点什么再发吧';
     if(/不是这个会话的成员/i.test(m)) return '你不在这个会话里';
+    if(/超过 2 分钟|超过2分钟/i.test(m)) return '超过 2 分钟了，撤不回来';
+    /* 兜底：约束冲突 / 函数签名不符 / 列不存在这类数据库原始错误，
+       原文是给开发者看的（形如 Failing row contains (...)），
+       直接弹给用户等于报错信息泄漏 + 完全看不懂。原文打到控制台便于排查。 */
+    if(/Failing row contains|violates|constraint|23514|22P02|23503|42P01|PGRST|permission denied/i.test(m)){
+      try{ console.warn('[db]', m); }catch(e){}
+      return '操作没成功，稍后再试一下';
+    }
     return m;
   }
 
@@ -979,7 +987,13 @@
         return {
           id: c.id, ctype: c.ctype, title: c.title, code: c.room_code,
           peer_id: c.peer_id, peer_nick: c.peer_nick, peer_avatar: c.peer_avatar,
-          last: c.last_content ? { content: c.last_content, type: c.last_type, sender_id: c.last_sender, created_at: c.last_at } : null,
+          /* 判断「有没有最后一条消息」不能用 content 是否非空：
+             撤回后服务端返回 content='' + type='recalled'，空串是 falsy，
+             会把 last 判成 null，列表直接显示「开始聊天吧」，撤回提示反而看不见。
+             用 last_type / last_at 作为「这条会话存在消息」的依据。 */
+          last: (c.last_type || c.last_at)
+            ? { content: c.last_content || '', type: c.last_type, sender_id: c.last_sender, created_at: c.last_at }
+            : null,
           /* 本地刚标记过已读的会话，在这个短窗口内忽略服务端可能还没更新的 unread，
              避免「返回列表后角标又冒出来再消失」的闪烁 */
           unread: (S.readMark[c.id] && (Date.now() - S.readMark[c.id]) < 15000) ? 0 : Number(c.unread || 0),
@@ -1078,6 +1092,13 @@
     else if(c.last.type === 'voice') body = '[语音]';
     else if(c.last.type === 'file') body = '[文件]';
     else if(c.last.type === 'system') return body;
+    /* 撤回：服务端把最后一条的 msg_type 标成 recalled。
+       文案对齐微信——单聊「你/对方」，群聊「你/昵称」，不能出现「我：撤回了一条消息」这种别扭拼法 */
+    else if(c.last.type === 'recalled'){
+      var rmine = (c.last.sender_id === S.sess.user.id);
+      if(c.ctype === 'group') return (rmine ? '你' : (c.last_nick || '有人')) + '撤回了一条消息';
+      return rmine ? '你撤回了一条消息' : '对方撤回了一条消息';
+    }
     var mine = (c.last.sender_id === S.sess.user.id);
     /* 群聊没有「对方」概念，一律「谁说的：内容」，否则完全分不清是谁在讲话 */
     if(c.ctype === 'group') return (mine ? '我' : (c.last_nick || '有人')) + '：' + body;
@@ -3427,7 +3448,7 @@
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1029.14:51';
+    var BUILD='1029.15:09';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
