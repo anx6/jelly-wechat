@@ -319,7 +319,10 @@
   .vrow.on .ck{background:var(--sky);}
   .vrow .vm{flex:1;min-width:0;font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   /* 评论输入条 */
-  .cbar{position:fixed;left:0;right:0;bottom:0;z-index:130;display:none;gap:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:var(--card);border-top:3px solid var(--ink);}
+  /* 评论条是「覆盖层」不是「占位行」：absolute 挂在 .app 里，底边跟着 --vh 走。
+     早先写在 body 层用 position:fixed —— iOS 键盘只改视觉视口不改布局视口，
+     fixed 元素仍钉在屏幕底，直接被键盘盖住，人根本看不见自己在打什么。 */
+  .cbar{position:absolute;left:0;right:0;bottom:0;z-index:130;display:none;gap:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom) * var(--sa,1));background:var(--card);border-top:3px solid var(--ink);box-shadow:0 -4px 0 rgba(26,26,46,.06);}
   .cbar.on{display:flex;}
   .cbar input{flex:1;min-width:0;border:2px solid var(--ink);border-radius:14px;padding:10px 12px;font-family:inherit;font-size:14px;font-weight:600;outline:none;}
 
@@ -1011,7 +1014,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.15:59';
+window.__BUILD = '1030.17:24';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1049,7 +1052,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.15:59</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.17:24</div>
         </div>
       </div>
     </section>
@@ -1613,7 +1616,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.15:59</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.17:24</div>
       </div>
     </section>
 
@@ -1829,7 +1832,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.15:59</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.17:24</div>
       </div>
     </section>
 
@@ -1855,12 +1858,6 @@ try{
     <div class="vcnt" id="vCnt"></div>
   </div>
 
-  <!-- 朋友圈评论输入条（P3）：只是固定在底部的输入行，不做成 modal -->
-  <div class="cbar" id="mCbar">
-    <input id="mCInp" type="text" maxlength="500" placeholder="评论…" autocomplete="off">
-    <button id="mCSend" type="button">发送</button>
-  </div>
-
   <!-- 录音浮层（P3-3）：按住说话时浮在聊天上方 -->
   <div class="recbar" id="recBar">
     <div class="recwave"><i></i><i></i><i></i><i></i><i></i></div>
@@ -1874,6 +1871,14 @@ try{
     <div class="iinfo"><div class="it">安装果冻微信</div><div class="is">添加到主屏，像原生 App 一样使用</div></div>
     <button class="ibtn2" id="installBtn" type="button">安装</button>
     <div class="iclose" id="installClose" role="button">✕</div>
+  </div>
+
+  <!-- 朋友圈评论输入条（P3）：贴在 .app 底部的一条输入行，不做成 modal。
+       必须挂在 .app 内部：.app 的高度跟着 --vh（可见视口）缩，
+       键盘一弹它就自己浮到键盘上方；放在 body 层用 fixed 会被键盘直接盖住。 -->
+  <div class="cbar" id="mCbar">
+    <input id="mCInp" type="text" maxlength="500" placeholder="评论…" autocomplete="off">
+    <button id="mCSend" type="button">发送</button>
   </div>
 
   <!-- FR-208 新消息提示条（P4）：非当前会话来消息时顶部浮条，点击跳会话列表 -->
@@ -1991,6 +1996,7 @@ try{
     momentDetail: null,   /* 详情页当前那条动态 */
     mp: null,             /* 发表中的草稿：{ text, pics:[{blob,url}], visibility, allow:[], location } */
     mComment: null,       /* 当前正在评论的目标：{ mid, parentId, replyTo, replyNick } */
+    cbarAnchor: null,     /* 评论条打开时的滚动锚点（那条动态 / 那行评论的 DOM） */
     /* ---- 朋友圈周边（P3-2）---- */
     noMomentExtra: false, /* p3c 没跑：没有 moment_range / moment_cover / 红点 / get_moment */
     noGroupPro: false,    /* p3d 没跑：群公告 / 管理员 / 群昵称 / 只看@我 全不可用 */
@@ -7238,11 +7244,19 @@ function refPayload(text, reply){
       var mid = el('div', 'fmid');
       var line = el('div', 'fline');
       var nmS = el('span', 'fnm', (r.actor_nick || '果冻用户'));
-      var actS = el('span', 'fact', r.item_kind === 'like' ? ' 赞了你的动态' : ' 评论了你的动态');
+      /* 三种情况要分开说人话：
+         · 赞 → 赞了你的动态
+         · 回复（reply_to 是我，且动态不是我发的）→ 回复了你
+         · 其余评论（动态是我发的）→ 评论了你的动态 */
+      var act = r.item_kind === 'like' ? ' 赞了你的动态'
+              : (r.reply_me ? ' 回复了你' : ' 评论了你的动态');
+      var actS = el('span', 'fact', act);
       line.appendChild(nmS); line.appendChild(actS);
       mid.appendChild(line);
       if(r.item_kind === 'comment' && r.content){
-        var q = el('div', 'fquote', (r.reply_to_nick ? '回复 ' + r.reply_to_nick + '：' : '') + r.content);
+        /* 回复我的时候 reply_to 就是我自己，再写「回复 我」很奇怪，只留内容 */
+        var pre = (r.reply_to_nick && !r.reply_me) ? ('回复 ' + r.reply_to_nick + '：') : '';
+        var q = el('div', 'fquote', pre + r.content);
         mid.appendChild(q);
       }
       if(r.moment_excerpt){
@@ -7337,7 +7351,8 @@ function refPayload(text, reply){
 
     var cm = el('span', 'pcm', '💬 评论');
     cm.setAttribute('role', 'button');
-    cm.addEventListener('click', function(){ openCommentBar(m.id, null, null, ''); });
+    /* 第四参是滚动锚点：点「评论」以整条动态为准，键盘弹起时把它顶到输入条上方 */
+    cm.addEventListener('click', function(){ openCommentBar(m.id, null, null, '', post); });
     acts.appendChild(cm);
 
     pbody.appendChild(acts);
@@ -7405,8 +7420,9 @@ function refPayload(text, reply){
         row.appendChild(el('span', '', '：' + c.content));
 
         row.addEventListener('click', function(){
-          /* 点评论 = 回复他；回复落在同一父级下，保证永远只有两层 */
-          openCommentBar(m.id, c.parent_id || c.id, c.user_id, c.nickname);
+          /* 点评论 = 回复他；回复落在同一父级下，保证永远只有两层。
+             锚点用这一行：滚到能看见「我回的是哪句话」的位置 */
+          openCommentBar(m.id, c.parent_id || c.id, c.user_id, c.nickname, row);
         });
         var canDel = c.mine || m.mine;
         if(canDel){
@@ -10082,6 +10098,9 @@ function closeMomentVideo(){
     /* 离开扫码页必须把摄像头关掉：否则后置摄像头指示灯一直亮着，
        用户会以为 App 在偷拍。切屏是唯一的出口（返回、跳转都走这里）。 */
     if(S.screen === 'scan' && name !== 'scan') stopScan();
+    /* 评论条是覆盖层：切到别的页面必须收回，否则它会一直压在底部
+       （连带把给滚动区垫的 padding 还原掉）。 */
+    if(S.mComment && name !== 'moments' && name !== 'momentdetail') closeCommentBar();
     S.screen = name;
     $$('.screen').forEach(function(s){ s.classList.toggle('active', s.dataset.screen === name); });
     slideScreen(name);
@@ -11881,23 +11900,52 @@ function closeMomentVideo(){
     });
   }
 
+  /* 全 App 只认「一份」动态对象：时间线数组和详情页必须指向同一个引用。
+     早先详情页刷新时直接 S.moments[i] = fresh 换了引用，DOM 节点却还绑着旧对象，
+     于是节点上点赞写进旧对象、评论重绘却读新对象 —— 表现出来就是
+     「先点赞再评论，赞突然变回没点」（用户实测）。 */
+  function momentById(id){
+    if(id == null) return null;
+    for(var i = 0; i < S.moments.length; i++){
+      if(S.moments[i] && S.moments[i].id === id) return S.moments[i];
+    }
+    if(S.momentDetail && S.momentDetail.id === id) return S.momentDetail;
+    return null;
+  }
+
+  /* 原地合并：保留引用，只覆盖服务端回来的字段。
+     likes / comments 是服务端权威快照，整体替换；其余标量直接覆盖。 */
+  function mergeMoment(dst, src){
+    if(!dst || !src) return dst;
+    for(var k in src){
+      if(Object.prototype.hasOwnProperty.call(src, k)) dst[k] = src[k];
+    }
+    return dst;
+  }
+
+  /* 同一条动态可能同时存在两个节点：时间线一个、详情页一个（两个 screen 都在 DOM 里）。
+     早先只 querySelector 第一个，导致详情页点完赞、列表那边不更新（反之亦然）。 */
   function repaintMoment(m){
-    var node = document.querySelector('.post[data-mid="' + m.id + '"]');
-    if(node) paintMomentBox(node, m);
+    if(!m || m.id == null) return;
+    var ns = document.querySelectorAll('.post[data-mid="' + m.id + '"]');
+    for(var i = 0; i < ns.length; i++) paintMomentBox(ns[i], m);
   }
 
   function doLikeMoment(m, node){
-    toggleMomentLike(m.id).then(function(r){
-      m.liked = r.liked;
-      m.likeCount = r.like_count;
+    var cur = momentById(m && m.id) || m;
+    if(!cur) return;
+    toggleMomentLike(cur.id).then(function(r){
+      cur.liked = r.liked;
+      cur.likeCount = r.like_count;
       var uid = S.me.id;
+      cur.likes = cur.likes || [];
       if(r.liked){
-        var has = m.likes.some(function(x){ return x.user_id === uid; });
-        if(!has) m.likes.push({ user_id: uid, nickname: S.me.nickname });
+        var has = cur.likes.some(function(x){ return x.user_id === uid; });
+        if(!has) cur.likes.push({ user_id: uid, nickname: S.me.nickname });
       }else{
-        m.likes = m.likes.filter(function(x){ return x.user_id !== uid; });
+        cur.likes = cur.likes.filter(function(x){ return x.user_id !== uid; });
       }
-      paintMomentBox(node, m);
+      repaintMoment(cur);
     }).catch(function(e){ toast(friendly(e.message)); });
   }
 
@@ -11916,21 +11964,65 @@ function closeMomentVideo(){
   }
 
   /* ---------------- 评论 ---------------- */
-  function openCommentBar(mid, parentId, replyTo, replyNick){
+  /* 评论条是覆盖在内容上的（绝对定位贴 .app 底边），键盘弹起只会让滚动区变矮，
+     不会自动把「被评论的那条」挪上来 —— 所以打开时手动滚一次。
+     iOS 的 --vh 是分几步稳定下来的，单次滚动会在键盘完全升起前算错，故多次校正。 */
+  function revealForComment(){
+    var a = S.cbarAnchor;
+    if(!a || !document.body.contains(a)) return;
+    var sc = a.closest ? a.closest('.body') : null;
+    if(!sc) return;
+    var bar = $('#mCbar');
+    var barH = (bar && bar.classList.contains('on')) ? bar.offsetHeight : 0;
+    var sb = sc.getBoundingClientRect();
+    if(!sb.height) return;
+    var ab = a.getBoundingClientRect();
+    var top = sb.top + 8;
+    var bottom = sb.bottom - barH - 14;
+    if(ab.bottom <= bottom && ab.top >= top) return;
+    if(ab.height > (bottom - top)){
+      /* 动态比可视区还高：优先保住顶部，人得先读到正文开头 */
+      sc.scrollTop += (ab.top - top);
+    }else if(ab.bottom > bottom){
+      sc.scrollTop += (ab.bottom - bottom);
+    }else if(ab.top < top){
+      sc.scrollTop -= (top - ab.top);
+    }
+  }
+
+  function openCommentBar(mid, parentId, replyTo, replyNick, anchor){
     S.mComment = { mid: mid, parentId: parentId || null, replyTo: replyTo || null, replyNick: replyNick || '' };
+    /* 被评论的那条动态/评论行：滚动的锚点 */
+    S.cbarAnchor = anchor || document.querySelector('.post[data-mid="' + mid + '"]');
     var bar = $('#mCbar'), inp = $('#mCInp');
     if(!bar || !inp) return;
+    /* 给滚动区垫一段底部空间，否则最后一条动态永远被输入条压住（内联 padding:0 只能用 JS 改） */
+    var sc = S.cbarAnchor && S.cbarAnchor.closest ? S.cbarAnchor.closest('.body') : null;
+    if(sc){
+      if(sc.__pb === undefined) sc.__pb = sc.style.paddingBottom;
+      sc.style.paddingBottom = '84px';
+      S.cbarBody = sc;
+    }
     inp.value = '';
     inp.placeholder = replyNick ? ('回复 ' + replyNick + '…') : '评论…';
     bar.classList.add('on');
-    setTimeout(function(){ try{ inp.focus(); }catch(e){} }, 60);
+    revealForComment();
+    setTimeout(function(){
+      try{ inp.focus(); }catch(e){}
+      revealForComment();
+    }, 60);
+    setTimeout(revealForComment, 320);
+    setTimeout(revealForComment, 640);
   }
 
   function closeCommentBar(){
     var bar = $('#mCbar'), inp = $('#mCInp');
     if(bar) bar.classList.remove('on');
     if(inp) inp.blur();
+    if(S.cbarBody && S.cbarBody.__pb !== undefined) S.cbarBody.style.paddingBottom = S.cbarBody.__pb;
+    S.cbarBody = null;
     S.mComment = null;
+    S.cbarAnchor = null;
   }
 
   function sendComment(){
@@ -11948,8 +12040,9 @@ function closeMomentVideo(){
       closeCommentBar();
 
       /* 本地插一条临时评论（id 用负数标记「还没被服务端确认」），
-         避免为了看自己刚发的一句话而整页重拉、图片重新解码闪一下。 */
-      var m = S.moments.filter(function(x){ return x.id === target.mid; })[0];
+         避免为了看自己刚发的一句话而整页重拉、图片重新解码闪一下。
+         对象一律从 momentById 取：节点闭包里的 m 可能是详情页刷新前的旧引用。 */
+      var m = momentById(target.mid);
       if(m){
         m.comments.push({
           id: -Date.now(),
@@ -12159,6 +12252,12 @@ function closeMomentVideo(){
 
   /* ---------------- 详情 ---------------- */
   function openMomentDetail(m){
+    /* 只带 {id} 进来的场景（赞与互动列表）：列表里已经有完整数据就直接用，
+       否则会先渲染一个空壳再等 getMoment 回填，白闪一下。 */
+    if(m && m.id != null && m.likes === undefined){
+      var hit = momentById(m.id);
+      if(hit) m = hit;
+    }
     S.momentDetail = m || null;
     goPage('momentdetail', backTo || curTab);
     renderMomentDetail(m || null);
@@ -12166,11 +12265,25 @@ function closeMomentVideo(){
        失败不提示 —— 详情已经渲染出来了，刷新只是锦上添花。 */
     if(m && m.id && !S.noMomentExtra && !String(m.id).match(/^-/)){
       getMoment(m.id).then(function(fresh){
-        S.momentDetail = fresh;
-        for(var i = 0; i < S.moments.length; i++){
-          if(S.moments[i].id === fresh.id){ S.moments[i] = fresh; break; }
+        if(!fresh || fresh.id == null) return;
+        /* 关键：绝不把新对象塞进数组换引用（见 momentById 的注释）。
+           有同 id 的对象就原地合并，然后统一重绘两个节点。 */
+        var tgt = momentById(fresh.id);
+        if(tgt){
+          /* 结构字段（正文/图片/位置/昵称）变了就得整条重建，否则只更新点赞评论区。
+             重建用的还是合并后的 tgt —— 引用没换，点赞状态不会丢。 */
+          var structural = (tgt.content !== fresh.content)
+            || ((tgt.location || '') !== (fresh.location || ''))
+            || ((tgt.nickname || '') !== (fresh.nickname || ''))
+            || (JSON.stringify(tgt.images || []) !== JSON.stringify(fresh.images || []));
+          mergeMoment(tgt, fresh);
+          S.momentDetail = tgt;
+          if(S.screen === 'momentdetail' && structural) renderMomentDetail(tgt);
+          else repaintMoment(tgt);
+        }else{
+          S.momentDetail = fresh;
+          if(S.screen === 'momentdetail') renderMomentDetail(fresh);
         }
-        if(S.screen === 'momentdetail') renderMomentDetail(fresh);
       }).catch(function(){});
     }
   }
@@ -12952,7 +13065,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.15:59';
+    var BUILD='1030.17:24';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
