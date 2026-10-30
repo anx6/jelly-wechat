@@ -832,6 +832,7 @@
   .friendcard .fswitch .tog.on{background:var(--pink);}
   .friendcard .fswitch .tog::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid var(--ink);transition:left .2s;}
   .friendcard .fswitch .tog.on::after{left:23px;}
+  .friendcard .fswitch .fsub{font-size:11.5px;color:var(--dim);font-weight:600;margin-top:3px;line-height:1.45;}
 
   /* ===== P1：发送失败 ===== */
   .msg.out.failed .bubble{background:#ffd9e7;color:var(--ink);}
@@ -1014,7 +1015,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.19:45';
+window.__BUILD = '1030.22:45';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1052,7 +1053,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.19:45</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.22:45</div>
         </div>
       </div>
     </section>
@@ -1616,7 +1617,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.19:45</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.22:45</div>
       </div>
     </section>
 
@@ -1837,7 +1838,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.19:45</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.22:45</div>
       </div>
     </section>
 
@@ -3829,15 +3830,29 @@ try{
   }
 
   /* 朋友圈好友级权限（FR-511）：两个独立开关
-       deny_my   = 不让他看我的朋友圈
-       hide_their= 不看他的朋友圈
-     没跑 p4_friends 迁移时 404，降级文案。 */
+       deny_my    = 不让他看我的朋友圈（连带挡住互动：看不到动态、不能点赞评论、不推通知）
+       hide_theirs= 不看他的朋友圈（只影响时间线与红点，单聊/通讯录不受影响）
+     没跑 p10_friend_perm 迁移时 404，降级文案。 */
   function setFriendMomentPerm(uid, denyMy, hideTheirs){
     return api('/rest/v1/rpc/set_friend_moment_perm', {
       method: 'POST',
       body: { p_uid: uid, p_deny_my: !!denyMy, p_hide_theirs: !!hideTheirs }
     }).catch(function(e){
-      if(e && (e.status === 400 || e.status === 404)) throw new Error('朋友圈权限功能需要先执行 p4_friends 迁移');
+      if(e && (e.status === 400 || e.status === 404)) throw new Error('朋友圈权限功能需要先执行 p10_friend_perm 迁移');
+      throw e;
+    });
+  }
+
+  /* 读「我对他」的当前设置。只返回我设的那一份，查不到就是全 false。
+     null 表示迁移没跑（前端按默认 false 处理，不弹错）。 */
+  function getFriendMomentPerm(uid){
+    return api('/rest/v1/rpc/get_friend_moment_perm', {
+      method: 'POST', body: { p_uid: uid }
+    }).then(function(r){
+      if(!r) return null;
+      return { deny_my: !!r.deny_my, hide_theirs: !!r.hide_theirs };
+    }).catch(function(e){
+      if(e && (e.status === 400 || e.status === 404)) return null;
       throw e;
     });
   }
@@ -9969,32 +9984,66 @@ function closeMomentVideo(){
     ]);
   }
 
-  /* FR-511 朋友圈好友级权限：两个独立开关 */
+  /* FR-511 朋友圈好友级权限：两个独立开关
+     - 先用缓存画首帧，再拉云端真实值对齐。
+       缓存只在本次会话有效，冷启动必为空；以前没有「拉真实值」这一步，
+       开关永远显示两个都关着，用户会以为设置丢了。
+     - 存失败要把开关拨回上一次成功的状态，否则界面显示「已屏蔽」而云端没生效。
+     - 手动动过开关后，回流值不再覆盖（避免把用户刚点的改掉）。 */
   function openMomentPerm(uid, nick){
     var sh = $('#sheet'); if(!sh) return;
     var cur = (S.friendPerm && S.friendPerm[uid]) || { deny_my: false, hide_theirs: false };
     var deny = !!cur.deny_my, hide = !!cur.hide_theirs;
+    var saved = { deny_my: deny, hide_theirs: hide };
+    var touched = false;
+    var togs = {};
     sh.innerHTML = '';
     var fc = el('div', 'friendcard');
     var head = el('div', 'fhead');
     head.appendChild(el('div', 'fname', (nick || '好友') + ' 的朋友圈权限'));
     fc.appendChild(head);
-    function sw(label, on, set){
+    function sw(label, sub, key, on, set){
       var r = el('div', 'fswitch');
-      r.appendChild(el('div', '', label));
+      var box = el('div', '');
+      box.appendChild(el('div', '', label));
+      if(sub) box.appendChild(el('div', 'fsub', sub));
+      r.appendChild(box);
       var t = el('div', 'tog' + (on ? ' on' : ''));
       r.appendChild(t);
-      t.addEventListener('click', function(){ on = !on; t.classList.toggle('on', on); set(on); });
+      togs[key] = t;
+      t.addEventListener('click', function(){
+        touched = true;
+        on = !on; t.classList.toggle('on', on); set(on);
+      });
       fc.appendChild(r);
     }
-    sw('不让他看我的朋友圈', deny, function(v){ deny = v; persist(); });
-    sw('不看他的朋友圈', hide, function(v){ hide = v; persist(); });
-    function persist(){
-      setFriendMomentPerm(uid, deny, hide).then(function(){
-        S.friendPerm[uid] = { deny_my: deny, hide_theirs: hide };
-        toast('已保存');
-      }).catch(function(e){ toast(friendly(e.message)); });
+    sw('不让他看我的朋友圈', '他看不到我的动态，也不能点赞评论，我动态的互动通知不再推给他',
+       'deny_my', deny, function(v){ deny = v; persist(); });
+    sw('不看他的朋友圈', '只影响我的时间线和红点，单聊、通讯录照常',
+       'hide_theirs', hide, function(v){ hide = v; persist(); });
+    function paint(){
+      togs.deny_my.classList.toggle('on', deny);
+      togs.hide_theirs.classList.toggle('on', hide);
     }
+    function persist(){
+      var d0 = deny, h0 = hide;
+      setFriendMomentPerm(uid, d0, h0).then(function(){
+        saved = { deny_my: d0, hide_theirs: h0 };
+        S.friendPerm[uid] = { deny_my: d0, hide_theirs: h0 };
+        toast('已保存');
+      }).catch(function(e){
+        if(deny === d0 && hide === h0){   /* 还是这一次的值才回滚 */
+          deny = saved.deny_my; hide = saved.hide_theirs; paint();
+        }
+        toast(friendly(e.message));
+      });
+    }
+    getFriendMomentPerm(uid).then(function(p){
+      if(!p || touched) return;
+      S.friendPerm[uid] = p;
+      saved = { deny_my: p.deny_my, hide_theirs: p.hide_theirs };
+      deny = p.deny_my; hide = p.hide_theirs; paint();
+    }).catch(function(){});
     var done = el('div', 'fact', '完成');
     done.addEventListener('click', closeSheet);
     fc.appendChild(done);
@@ -13306,7 +13355,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.19:45';
+    var BUILD='1030.22:45';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
