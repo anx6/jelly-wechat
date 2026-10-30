@@ -89,8 +89,8 @@
   .nm .nt{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .mid .nm{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
   .mid .nm .nt{flex:1;min-width:0;}
-  .nm .t{font-size:10.5px;font-weight:700;color:var(--dim);flex-shrink:0;}
-  .ms{font-size:calc(13px * var(--fs));color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;font-weight:600;}
+  .nm .t{font-size:11px;font-weight:700;color:var(--dim);flex-shrink:0;}
+  .ms{font-size:calc(13.5px * var(--fs));color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px;font-weight:600;line-height:1.45;}
   .badge{min-width:20px;height:20px;padding:0 6px;border-radius:11px;background:var(--pink);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--ink);}
 
   /* chat detail */
@@ -202,7 +202,10 @@
   .inputbar{display:flex;gap:7px;padding:8px 10px;border-top:4px solid var(--ink);background:var(--card);align-items:flex-end;flex-shrink:0;}
   .ibtn{width:38px;height:38px;border:3px solid var(--ink);border-radius:12px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
   .field{flex:1;background:var(--soft);border:3px solid var(--ink);border-radius:16px;padding:9px 12px;font-size:13.5px;color:var(--dim);font-weight:600;min-width:0;}
-  .send{background:var(--lime);border:3px solid var(--ink);border-radius:14px;padding:9px 15px;font-weight:800;font-size:13px;box-shadow:2px 2px 0 var(--ink);flex-shrink:0;}
+  .send{background:var(--lime);border:3px solid var(--ink);border-radius:14px;padding:9px 15px;font-weight:800;font-size:13px;box-shadow:2px 2px 0 var(--ink);flex-shrink:0;display:none;}
+  /* 微信式：有文字时「发送」顶替 ＋ 的位置 */
+  .inputbar.typing .send{display:block;}
+  .inputbar.typing #btnMore{display:none;}
   .send:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink);}
 
   /* contacts */
@@ -318,6 +321,20 @@
   .post.detail{border-bottom:none;min-height:100%;}
   .post.detail .ptext{font-size:calc(14.5px * var(--fs));}
   .post.detail .pgrid{max-width:100%;}
+  /* 赞与互动列表（P3-4）：一行 = 头像 | 谁做了什么 + 动态摘要 | 时间 */
+  .fitem{display:flex;gap:10px;align-items:flex-start;background:var(--card);border:3px solid var(--ink);
+         border-radius:16px;box-shadow:3px 3px 0 rgba(26,26,46,.12);padding:10px 11px;margin:8px 0;}
+  .fitem:active{transform:translate(1px,1px);box-shadow:1px 1px 0 rgba(26,26,46,.12);}
+  .fitem .fava{width:40px;height:40px;border:2.5px solid var(--ink);border-radius:12px;overflow:hidden;flex-shrink:0;background:var(--card2);}
+  .fitem .fava img{width:100%;height:100%;object-fit:cover;display:block;}
+  .fitem .fmid{flex:1;min-width:0;}
+  .fitem .fline{font-size:13px;font-weight:700;line-height:1.5;}
+  .fitem .fline .fnm{font-weight:800;}
+  .fitem .fline .fact{color:var(--dim);font-weight:700;}
+  .fitem .fquote{margin-top:4px;padding:5px 8px;background:var(--card2);border-radius:10px;font-size:12px;font-weight:600;
+                 color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:2px solid var(--line-soft);}
+  .fitem .fexc{margin-top:4px;font-size:11.5px;font-weight:700;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fitem .ft{font-size:10px;font-weight:700;color:var(--dim);flex-shrink:0;margin-top:2px;}
   .post.detail .pbox{background:var(--card2);}
   /* 详情页底部有评论输入条，留出空间否则最后一条评论会被挡住 */
   .screen[data-screen="momentdetail"] .body{padding-bottom:76px;}
@@ -554,12 +571,14 @@
   .pullhint.ing .phIco{animation:pullspin .8s linear infinite;}
   @keyframes pullspin{to{transform:rotate(360deg);}}
   /* FR-1110 会话行侧滑：包装层负责裁剪，快捷钮垫在 .row 底下。
+     微信式：仅左滑露右侧两个按钮（标为已读/未读 + 置顶），按钮加宽横排文字，
+     4 个字一行放得下（旧版 40px 竖排被裁成「免打/扰」的锅就是宽度不够）。
      间距从 .row 挪到 .rsw（仅会话列表，好友/群列表不受影响）。 */
-  #roomList .rsw{position:relative;margin:8px 0;border-radius:23px;}
+  #roomList .rsw{position:relative;margin:7px 10px;border-radius:22px;}
   #roomList .rsw>.row{margin:0;}
-  #roomList .swipeA{position:absolute;inset:0;display:flex;align-items:stretch;justify-content:space-between;pointer-events:none;border-radius:23px;}
-  #roomList .swgrp{display:flex;align-items:center;padding:8px 4px;gap:4px;}
-  #roomList .swbtn{pointer-events:auto;display:flex;align-items:center;justify-content:center;width:40px;height:100%;max-height:64px;border-radius:16px;border:3px solid var(--ink);font-size:11px;font-weight:800;color:#1a1a2e;cursor:pointer;box-shadow:2px 2px 0 var(--ink);padding:0 2px;text-align:center;line-height:1.25;word-break:break-all;}
+  #roomList .swipeA{position:absolute;inset:0;display:flex;align-items:stretch;justify-content:flex-end;pointer-events:none;border-radius:22px;}
+  #roomList .swgrp{display:flex;align-items:center;padding:8px 4px;gap:5px;}
+  #roomList .swbtn{pointer-events:auto;display:flex;align-items:center;justify-content:center;width:58px;height:100%;max-height:72px;border-radius:15px;border:3px solid var(--ink);font-size:11.5px;font-weight:800;color:#1a1a2e;cursor:pointer;box-shadow:2px 2px 0 var(--ink);padding:0;text-align:center;line-height:1.2;white-space:nowrap;}
   #roomList .swbtn.pin{background:var(--yellow);}
   #roomList .swbtn.mute{background:var(--sky);}
   #roomList .swbtn.mute.on{background:var(--skel);color:var(--ink);}
@@ -757,7 +776,6 @@
   .offbar{display:none;padding:6px 14px;background:var(--ink);color:#fff;font-size:11.5px;font-weight:800;text-align:center;letter-spacing:.3px;flex-shrink:0;animation:pop .25s ease;}
   .offbar.on{display:block;}
   .row.pinned{box-shadow:5px 5px 0 var(--yellow);background:var(--card2);}
-  .row.pinned .nm::before{content:'置顶 · ';font-size:10px;color:var(--dim);font-weight:800;}
   .dot{width:12px;height:12px;border-radius:50%;background:var(--pink);border:2px solid var(--ink);flex-shrink:0;}
   .row .badge.gray{background:#b3aac4;}
 
@@ -977,7 +995,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.11:40';
+window.__BUILD = '1030.12:26';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1015,7 +1033,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.11:40</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.12:26</div>
         </div>
       </div>
     </section>
@@ -1120,23 +1138,24 @@ try{
         <div class="banner" id="chatBanner" style="display:none"></div>
         <div class="msgs" id="msgs"></div>
       </div>
-      <div class="inputbar">
+      <div class="inputbar" id="inputBar">
         <!-- FR-1104 引用条：absolute 挂在 inputbar 内（relative 基准），浮在输入栏上方不挤压输入行 -->
         <div class="quotebar" id="quoteBar" style="display:none"></div>
-        <div class="ibtn" id="btnAt" role="button" aria-label="提到某人" style="display:none">@</div>
-        <div class="ibtn" id="btnMore" role="button" aria-label="更多功能">＋</div>
-        <div class="ibtn" id="btnPickImg" role="button" aria-label="发送图片">🖼</div>
+        <!-- 微信最新版排布：[🎤按住说话] [输入框] [😀] [＋]，发送键只在有文字时顶替 ＋ 的位置。
+             旧版一行塞 @/＋/图/🎤/框/😀/发送 七个元素，375px 宽下输入框被挤到只剩一条缝。 -->
         <div class="ibtn" id="btnVoice" role="button" aria-label="按住说话">🎤</div>
         <textarea class="field" id="msgInput" rows="1" maxlength="2000" placeholder="说点什么…"></textarea>
         <div class="ibtn" id="btnEmoji" role="button" aria-label="表情">😀</div>
+        <div class="ibtn" id="btnMore" role="button" aria-label="更多功能">＋</div>
         <button class="send" id="sendBtn" type="button" aria-label="发送消息" disabled>发送</button>
         <input type="file" id="filePick" accept="image/*" multiple style="display:none">
         <input type="file" id="filePickVideo" accept="video/*" style="display:none">
         <input type="file" id="filePickFile" accept="*/*" style="display:none">
-        <!-- 群聊 @ 选人（P2-5）：向上弹出，选完自动补一个空格 -->
+        <!-- 群聊 @ 选人（P2-5）：从 ＋ 面板进（群聊才显示），向上弹出，选完自动补一个空格 -->
         <div class="atbox" id="atBox"></div>
         <!-- ＋ 菜单（FR-305/306/307）：浮在输入栏上方，点 ＋ 开关 -->
         <div class="morepanel" id="morePanel" style="display:none">
+          <div class="morecell" id="moreAt" role="button" style="display:none"><div class="mico" style="background:var(--pink)">@</div><div class="mnm">提醒某人</div></div>
           <div class="morecell" id="moreAlbum" role="button"><div class="mico" style="background:var(--lime)">🖼</div><div class="mnm">相册</div></div>
           <div class="morecell" id="moreVideo" role="button"><div class="mico" style="background:var(--sky)">🎬</div><div class="mnm">视频</div></div>
           <div class="morecell" id="moreFile" role="button"><div class="mico" style="background:var(--purple)">📄</div><div class="mnm">文件</div></div>
@@ -1344,6 +1363,7 @@ try{
       <div class="body">
         <div class="card">
           <div class="cell" data-go="moments" data-feat="moments"><div class="chip" style="background:var(--pink)">📸</div><div class="nm">朋友圈</div><span class="cdot" id="dotMoments" style="display:none">0</span><div class="chev">›</div></div>
+          <div class="cell" data-go="mfeed" data-feat="moments"><div class="chip" style="background:var(--yellow)">💬</div><div class="nm">赞与互动</div><span class="cdot" id="dotFeed" style="display:none">0</span><div class="chev">›</div></div>
           <div class="cell" data-demo="channels" data-feat="channels"><div class="chip" style="background:var(--purple)">🎬</div><div class="nm">视频号</div><div class="chev">›</div></div>
         </div>
         <div class="card">
@@ -1486,6 +1506,16 @@ try{
       <div class="body" id="mdBody" style="padding:0;"></div>
     </section>
 
+    <!-- ================= 赞与互动（P3-4，p3d 迁移） ================= -->
+    <section class="screen" data-screen="mfeed">
+      <div class="head">
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
+        <div class="cttl">赞与互动</div>
+        <div style="width:38px;flex-shrink:0;"></div>
+      </div>
+      <div class="body" id="mfeedBody" style="padding:0 12px 16px;"></div>
+    </section>
+
     <!-- ================= 选择相册封面 ================= -->
     <section class="screen" data-screen="coverpick">
       <div class="head">
@@ -1551,7 +1581,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.11:40</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.12:26</div>
       </div>
     </section>
 
@@ -1767,7 +1797,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.11:40</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.12:26</div>
       </div>
     </section>
 
@@ -1981,7 +2011,10 @@ try{
     archMeta: null,       /* 本机存档索引 { v, uid, at, convs: [{id,title,ctype,n,b}] } */
     archRows: {},         /* cid -> 已从 localStorage 读出的分片消息（只在本次会话内缓存） */
     archLast: null,       /* 最近一次导入结果 { ok, convs, msgs, skip }，页面用来显示回执 */
-    momentUnread: 0,      /* 「发现」红点数字 */
+    momentUnread: 0,      /* 「发现」红点数字（好友新动态） */
+    momentFeedUnread: 0,  /* 「赞与互动」未读数（别人赞/评论我的动态） */
+    momentFeed: [],       /* 互动消息列表（moment_feed 行缓存） */
+    noMomentFeed: false,  /* p3d 迁移没跑时的降级开关 */
     momentReadAt: 0,      /* 本地刚点过已读的时间戳（15 秒内压住服务端旧数字，防回闪） */
     momentRange: 'all',   /* 我的可见期设置 */
     momentCover: '',      /* 我的相册封面 URL */
@@ -3381,6 +3414,42 @@ try{
     S.momentReadAt = Date.now();
     if(S.noMomentExtra) return Promise.resolve();
     return api('/rest/v1/rpc/mark_moments_read', { method: 'POST', body: {} }).catch(function(){});
+  }
+
+  /* ---------------- 互动消息（P3-4，依赖 p3d 迁移） ----------------
+     别人赞/评论「我的」动态的未读数与列表。p3d 没跑时 S.noMomentFeed
+     置位：角标不再请求、入口点进去给一句人话，不影响朋友圈主体。 */
+
+  function loadMomentFeedUnread(){
+    if(S.noMomentFeed || S.noMoments) return Promise.resolve(0);
+    return api('/rest/v1/rpc/moment_feed_unread', { method: 'POST', body: {} })
+      .then(function(n){ S.momentFeedUnread = Number(n || 0); return S.momentFeedUnread; })
+      .catch(function(e){
+        if(e && (e.status === 400 || e.status === 404 || e.status === 401)) S.noMomentFeed = true;
+        S.momentFeedUnread = 0;
+        return 0;
+      });
+  }
+
+  /* 列表：返回行数组（PGRST202 = 函数没部署，同样降级） */
+  function listMomentFeed(limit){
+    if(S.noMomentFeed) return Promise.resolve([]);
+    return api('/rest/v1/rpc/list_moment_feed', { method: 'POST', body: { p_limit: limit || 50 } })
+      .then(function(rows){
+        S.momentFeed = rows || [];
+        return S.momentFeed;
+      })
+      .catch(function(e){
+        if(e && (e.status === 400 || e.status === 404 || e.status === 401)) S.noMomentFeed = true;
+        S.momentFeed = [];
+        return [];
+      });
+  }
+
+  function markMomentFeedSeen(){
+    S.momentFeedUnread = 0;
+    if(S.noMomentFeed) return Promise.resolve();
+    return api('/rest/v1/rpc/mark_moment_feed_seen', { method: 'POST', body: {} }).catch(function(){});
   }
 
   /* 详情：返回单行 jsonb（不是数组，和 list_moments 的 setof 不一样） */
@@ -5100,22 +5169,28 @@ function refPayload(text, reply){
     if(!c) return;
     if(kind === 'pin') setFlags(c, !c.pinned_at, null);
     else if(kind === 'mute') setFlags(c, null, !c.mute);
-    else if(kind === 'read') markConvRead(c);
+    else if(kind === 'read'){
+      /* 按钮是双态的：有未读 → 标为已读；没有 → 标为未读（和微信一致） */
+      if(c.unread > 0) markConvRead(c);
+      else markConvUnread(c);
+    }
   }
 
-  /* 侧滑手势：左滑露出「置顶/免打扰」（≤80px，超出阻尼），右滑露出「标记已读」。
+  /* 侧滑手势（微信式）：只有左滑露出右侧「标为已读/未读 + 置顶」两个按钮。
+     右滑没有右侧操作，一律阻尼回弹（旧版右滑露「已读」按钮，用户反馈误触且表意不明，已移除）。
      阈值 40px 判定展开或回弹；横竖向以 8px 先到者判定，竖向直接让位给列表滚动。
      滑过的行 350ms 内吞掉 click，避免「滑完顺手点开了会话」。 */
+  var SW_REVEAL = 129; /* 两个 58px 按钮内边距/间隙的总宽，与 CSS 对齐 */
   function bindSwipe(row, cid){
-    var sx = 0, sy = 0, base = 0, dir = 0, horiz = null;
+    var sx = 0, sy = 0, base = 0, horiz = null;
     function apply(off){
       row.style.transform = 'translateX(' + off + 'px)';
     }
     row.addEventListener('touchstart', function(e){
       if(!e.touches || !e.touches.length) return;
       sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-      base = swipeOpenRow === row ? (dir || 0) : 0;
-      horiz = null; dir = 0;
+      base = swipeOpenRow === row ? -SW_REVEAL : 0;
+      horiz = null;
     }, { passive: true });
     row.addEventListener('touchmove', function(e){
       if(!e.touches || !e.touches.length) return;
@@ -5131,9 +5206,8 @@ function refPayload(text, reply){
       if(horiz !== 'h') return;
       e.preventDefault(); /* 横滑时别让页面跟着滚 */
       var off = base + mx;
-      dir = off < 0 ? -1 : (off > 0 ? 1 : 0);
-      var lim = dir < 0 ? -80 : 80;
-      if(Math.abs(off) > 80) off = lim + (Math.abs(off) - 80) * 0.3 * (dir < 0 ? -1 : 1); /* 阻尼 */
+      if(off > 0) off = off > 8 ? off * 0.3 : 0; /* 右滑：没有操作，只给一点阻尼手感 */
+      if(off < -SW_REVEAL) off = -(SW_REVEAL + (Math.abs(off) - SW_REVEAL) * 0.3); /* 超出阻尼 */
       apply(off);
     }, { passive: false });
     function finish(){
@@ -5142,9 +5216,9 @@ function refPayload(text, reply){
       row.classList.remove('swiping');
       var off = base + (row._lastDx || 0);
       row._lastDx = 0;
-      if(Math.abs(off) >= 40){
+      if(off <= -40){
         swipeOpenRow = row;
-        apply(dir < 0 ? -80 : 80);
+        apply(-SW_REVEAL);
       }else{
         closeSwipe(row);
       }
@@ -5198,23 +5272,20 @@ function refPayload(text, reply){
     else if(bg0.kind === 'dot') row.appendChild(el('span', 'dot'));
 
     /* FR-1110 快捷钮：垫在 row 底下，row 滑开才露出来。
-       左滑（负方向）→ 右侧「置顶 / 免打扰」；右滑 → 左侧「标记已读」。 */
+       微信式：只有左滑（负方向）→ 右侧「标为已读/未读 + 置顶」。
+       免打扰不再放进侧滑（长按菜单里有），「已读」这种单字按钮表意不明，改成完整动词短语。 */
     var acts = el('div', 'swipeA');
-    var gRead = el('div', 'swgrp l');
-    var bRead = el('div', 'swbtn read', '已读');
+    var gPin = el('div', 'swgrp');
+    var bRead = el('div', 'swbtn read', c.unread > 0 ? '标为已读' : '标为未读');
     bRead.addEventListener('click', function(){ swipeAct(c.id, 'read', row); });
-    gRead.appendChild(bRead);
-    var gPin = el('div', 'swgrp r');
     var bPin = el('div', 'swbtn pin' + (c.pinned_at ? ' on' : ''), c.pinned_at ? '取消置顶' : '置顶');
-    var bMute = el('div', 'swbtn mute' + (c.mute ? ' on' : ''), c.mute ? '勿扰✓' : '免打扰');
     bPin.addEventListener('click', function(){ swipeAct(c.id, 'pin', row); });
-    bMute.addEventListener('click', function(){ swipeAct(c.id, 'mute', row); });
-    gPin.appendChild(bPin); gPin.appendChild(bMute);
-    acts.appendChild(gRead); acts.appendChild(gPin);
+    gPin.appendChild(bRead); gPin.appendChild(bPin);
+    acts.appendChild(gPin);
     wrap.appendChild(acts);
     wrap.appendChild(row);
     wrap._row = row; /* convRowPatch 拿到的是包装层，真正的行在里面 */
-    row._sw = { pin: bPin, mute: bMute };
+    row._sw = { read: bRead, pin: bPin };
 
     /* 点击时按 id 取最新会话对象，避免闭包里拿到轮询前的旧数据 */
     row.addEventListener('click', function(){
@@ -5257,17 +5328,14 @@ function refPayload(text, reply){
 
     if(!!c.pinned_at !== body.classList.contains('pinned')) body.classList.toggle('pinned', !!c.pinned_at);
 
-    /* 侧滑快捷钮文案跟着状态走 */
+    /* 侧滑快捷钮文案跟着状态走（标为已读/未读按未读数切换） */
     if(body._sw){
+      var wantRead = c.unread > 0 ? '标为已读' : '标为未读';
       var wantPin = c.pinned_at ? '取消置顶' : '置顶';
-      var wantMute = c.mute ? '勿扰✓' : '免打扰';
+      if(body._sw.read.textContent !== wantRead) body._sw.read.textContent = wantRead;
       if(body._sw.pin.textContent !== wantPin){
         body._sw.pin.textContent = wantPin;
         body._sw.pin.classList.toggle('on', !!c.pinned_at);
-      }
-      if(body._sw.mute.textContent !== wantMute){
-        body._sw.mute.textContent = wantMute;
-        body._sw.mute.classList.toggle('on', !!c.mute);
       }
     }
 
@@ -6878,7 +6946,13 @@ function refPayload(text, reply){
     inp.style.height = (h > 20) ? Math.min(h, 88) + 'px' : '';
   }
 
-  function refreshSend(){ if(sendBtn && inp) sendBtn.disabled = inp.value.trim().length === 0; }
+  function refreshSend(){
+    var empty = !inp || inp.value.trim().length === 0;
+    if(sendBtn) sendBtn.disabled = empty;
+    /* 微信式输入栏：有文字时「发送」顶替 ＋ 的位置（CSS .typing 分支） */
+    var bar = sendBtn && sendBtn.closest ? sendBtn.closest('.inputbar') : null;
+    if(bar) bar.classList.toggle('typing', !empty);
+  }
 
   var emoCat = '常用';
 
@@ -7006,8 +7080,9 @@ function refPayload(text, reply){
     if(es) es.textContent = me ? (S.momentSelf ? '点右上角相机，发第一条吧' : '过段时间再来看看') : '点右上角相机，发第一条吧';
   }
 
-  /* 「发现」页朋友圈入口 + tabbar 发现图标上的红点。
-     两个位置共用一个数字：cell 上显示条数，tab 上只显示小圆点（用户看不到数字也能知道有新东西）。 */
+  /* 「发现」页朋友圈/互动入口 + tabbar 发现图标上的红点。
+     朋友圈 cell = 好友新动态条数；「赞与互动」cell = 别人赞/评论我的动态的未读数。
+     tab 上只显示两者之和的小圆点。 */
   function renderDiscoverDot(){
     var n = Number(S.momentUnread || 0);
     var cell = $('#dotMoments');
@@ -7015,13 +7090,67 @@ function refPayload(text, reply){
       cell.textContent = n > 99 ? '99+' : String(n);
       cell.style.display = n > 0 ? 'flex' : 'none';
     }
+    var fn = Number(S.momentFeedUnread || 0);
+    var fcell = $('#dotFeed');
+    if(fcell){
+      fcell.textContent = fn > 99 ? '99+' : String(fn);
+      fcell.style.display = fn > 0 ? 'flex' : 'none';
+    }
     var tab = $('.tab[data-tab="discover"]');
     if(tab){
       var d = tab.querySelector('.tdot');
       if(!d){ d = el('span', 'tdot'); tab.appendChild(d); }
-      if(n > 0){ d.textContent = n > 99 ? '99+' : String(n); d.style.display = 'flex'; }
+      var all = n + fn;
+      if(all > 0){ d.textContent = all > 99 ? '99+' : String(all); d.style.display = 'flex'; }
       else d.style.display = 'none';
     }
+  }
+
+  /* 赞与互动列表（P3-4）：谁赞了 / 评论了我的哪条动态。
+     点一行 → 打开那条动态的详情（openMomentDetail 会自己拉最新数据）。 */
+  function renderMFeed(){
+    var body = $('#mfeedBody');
+    if(!body) return;
+    body.innerHTML = '';
+    if(S.noMomentFeed){
+      body.innerHTML = '<div class="empty" style="display:flex"><div class="eico">🚧</div>' +
+        '<div class="etitle">还没开通</div>' +
+        '<div class="esub">互动消息要等 p3d 迁移执行后才能用<br>（控制台跑一下 supabase_migration_p3d_moment_feed.sql）</div></div>';
+      return;
+    }
+    var rows = S.momentFeed || [];
+    if(!rows.length){
+      body.innerHTML = '<div class="empty" style="display:flex"><div class="eico">💬</div>' +
+        '<div class="etitle">还没有互动</div>' +
+        '<div class="esub">有人赞或评论你的动态时，这里会冒出来</div></div>';
+      return;
+    }
+    rows.forEach(function(r){
+      var it = el('div', 'fitem');
+      it.setAttribute('role', 'button');
+      var ava = el('div', 'fava');
+      try{ ava.appendChild(avaImg(r.actor_avatar || 'ava_cat')); }catch(e){ ava.textContent = '🙂'; }
+      var mid = el('div', 'fmid');
+      var line = el('div', 'fline');
+      var nmS = el('span', 'fnm', (r.actor_nick || '果冻用户'));
+      var actS = el('span', 'fact', r.item_kind === 'like' ? ' 赞了你的动态' : ' 评论了你的动态');
+      line.appendChild(nmS); line.appendChild(actS);
+      mid.appendChild(line);
+      if(r.item_kind === 'comment' && r.content){
+        var q = el('div', 'fquote', (r.reply_to_nick ? '回复 ' + r.reply_to_nick + '：' : '') + r.content);
+        mid.appendChild(q);
+      }
+      if(r.moment_excerpt){
+        var exc = el('div', 'fexc', r.moment_excerpt);
+        mid.appendChild(exc);
+      }
+      var t = el('div', 'ft', fmtListTime(r.created_at));
+      it.appendChild(ava); it.appendChild(mid); it.appendChild(t);
+      it.addEventListener('click', function(){
+        if(r.moment_id != null) openMomentDetail({ id: r.moment_id });
+      });
+      body.appendChild(it);
+    });
   }
 
   function momentNode(m){
@@ -7054,9 +7183,10 @@ function refPayload(text, reply){
 
     if(m.content) pbody.appendChild(el('div', 'ptext', m.content));
 
-    if(m.images.length){
+    /* m.images 兜底：互动列表点进详情时只带 {id}，完整数据靠 getMoment 回填 */
+    if((m.images || []).length){
       var g = el('div', momentGridClass(m.images.length));
-      m.images.forEach(function(u, i){
+      (m.images || []).forEach(function(u, i){
         var cell = el('div');
         /* FR-1122 视频动态：images 数组里的 JSON 项 {"url","dur"} 是视频格 */
         var vd = parseMomentVideo(u);
@@ -7138,8 +7268,9 @@ function refPayload(text, reply){
     var box = pbody.querySelector('.pbox');
     if(box) box.innerHTML = '';
 
-    var hasLike = m.likes.length > 0;
-    var hasCm = m.comments.length > 0;
+    /* likes/comments 兜底：互动列表点进详情时只带 {id}，完整数据靠 getMoment 回填 */
+    var hasLike = (m.likes || []).length > 0;
+    var hasCm = (m.comments || []).length > 0;
 
     if(!hasLike && !hasCm){
       if(box) box.remove();
@@ -7149,7 +7280,7 @@ function refPayload(text, reply){
       if(hasLike){
         var lk = el('div', 'lkrow');
         lk.appendChild(el('span', 'who', '❤️'));
-        m.likes.forEach(function(l, i){
+        (m.likes || []).forEach(function(l, i){
           lk.appendChild(el('span', 'who', l.nickname));
           if(i < m.likes.length - 1) lk.appendChild(el('span', '', '、'));
         });
@@ -7158,7 +7289,7 @@ function refPayload(text, reply){
 
       if(hasLike && hasCm) box.appendChild(el('div', 'pdiv'));
 
-      m.comments.forEach(function(c){
+      (m.comments || []).forEach(function(c){
         var row = el('div', 'cmrow' + (c.mine ? ' mine' : ''));
         row.appendChild(el('span', 'who', c.nickname));
         /* 二级回复才显示「回复 谁」；一级评论不带，和微信一致 */
@@ -9306,8 +9437,9 @@ function closeMomentVideo(){
       renderAnnBar();
     }
     closeAtBox();
-    var atBtn = $('#btnAt');
-    if(atBtn) atBtn.style.display = isGroup ? 'flex' : 'none';
+    /* 群聊「提醒某人」入口在 ＋ 面板里（输入栏改为微信式四键后 @ 不再单占一格） */
+    var atBtn = $('#moreAt');
+    if(atBtn) atBtn.style.display = isGroup ? '' : 'none';
     /* 命中内存缓存 → 同步渲染出来，用户立刻看到内容，不经过「加载中…」 */
     var cache = c && S.msgCache[c.id];
     var hit = !!(cache && cache.rows.length);
@@ -10225,11 +10357,10 @@ function closeMomentVideo(){
     autoGrow(); refreshSend();
   }
 
-  if(pickBtn && filePick){
-    pickBtn.addEventListener('click', function(){
-      if(!S.cur){ toast('先选一个聊天'); return; }
-      filePick.click();
-    });
+  /* 输入栏改微信式后不再有独立图片按钮，选图统一走 ＋ 面板的「相册」（moreAlbum）。
+     注意：下面这坨绑定原来嵌在 if(pickBtn && filePick) 里 —— 那个按钮一删，
+     表情面板 / 群聊入口 / 公告条 / ＋ 菜单全都会失灵，所以必须拆出来单独成块。 */
+  {
     /* ---- 群聊入口与操作（P2-5） ---- */
     var cellGroups = $('#cellGroups');
     if(cellGroups) cellGroups.addEventListener('click', function(){ openGroupList(); });
@@ -10273,8 +10404,7 @@ function closeMomentVideo(){
       var annBody = annBar.querySelector('.anm');
       if(annBody) annBody.addEventListener('click', function(){ annBar.classList.toggle('open'); });
     }
-    var btnAt = $('#btnAt');
-    if(btnAt) btnAt.addEventListener('click', function(){ insertAtSign(); });
+    /* 群聊 @ 由 ＋ 面板的 moreAt 触发（下方 morePanel 事件委托里） */
     var chatTitle = $('#chatTitle');
     if(chatTitle) chatTitle.addEventListener('click', function(){
       if(S.cur && S.cur.ctype === 'group') openGroupInfo();
@@ -10308,7 +10438,8 @@ function closeMomentVideo(){
       if(!c) return;
       toggleMore(false);
       var id = c.id;
-      if(id === 'moreAlbum'){ if(filePick) filePick.click(); }
+      if(id === 'moreAt'){ insertAtSign(); }
+      else if(id === 'moreAlbum'){ if(filePick) filePick.click(); }
       else if(id === 'moreVideo'){ var fv = $('#filePickVideo'); if(fv) fv.click(); }
       else if(id === 'moreFile'){ var ff = $('#filePickFile'); if(ff) ff.click(); }
       else if(id === 'moreLoc'){ openLocationPicker(); }
@@ -10538,6 +10669,7 @@ function closeMomentVideo(){
       if(name === 'chatdetail') return;
       /* 朋友圈要带上下文（看自己还是看别人），不能只切一个屏 */
       if(name === 'moments'){ openMoments(); return; }
+      if(name === 'mfeed'){ openMFeed(); return; }
       goPage(name, curTab);
     });
   });
@@ -11714,7 +11846,28 @@ function closeMomentVideo(){
   /* ---------------- 红点 ---------------- */
   function refreshMomentDot(){
     if(!S.sess || S.noMoments) return Promise.resolve();
-    return loadMomentUnread().then(function(){ renderDiscoverDot(); }).catch(function(){});
+    /* 两个数字一起刷：好友新动态（朋友圈 cell）+ 赞/评论未读（赞与互动 cell） */
+    return Promise.all([loadMomentUnread(), loadMomentFeedUnread()])
+      .then(function(){ renderDiscoverDot(); })
+      .catch(function(){});
+  }
+
+  /* ---------------- 赞与互动（P3-4） ---------------- */
+  function openMFeed(){
+    goPage('mfeed', 'discover');
+    if(S.noMomentFeed){ renderMFeed(); return; }
+    var body = $('#mfeedBody');
+    if(body) body.innerHTML = '<div class="time">加载中…</div>';
+    listMomentFeed(50).then(function(rows){
+      if(S.screen !== 'mfeed') return;
+      renderMFeed();
+      /* 列表已在眼前才清位点：拉取失败时角标保留，下次进来还能看到 */
+      if(rows.length || S.momentFeedUnread > 0){
+        markMomentFeedSeen().then(renderDiscoverDot);
+      }
+    }).catch(function(){
+      if(S.screen === 'mfeed') renderMFeed();
+    });
   }
 
   /* ---------------- 详情 ---------------- */
@@ -12494,7 +12647,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.11:40';
+    var BUILD='1030.12:26';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
