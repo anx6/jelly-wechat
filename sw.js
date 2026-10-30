@@ -1,4 +1,4 @@
-const CACHE='jelly-wechat-v52';
+const CACHE='jelly-wechat-v53';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-512-maskable.png','./icons/apple-touch-icon.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>Promise.all(ASSETS.map(u=>c.add(u).catch(()=>{})))).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
@@ -59,13 +59,13 @@ self.addEventListener('push',e=>{
         renotify:false,
         icon:'./icons/icon-192.png',
         badge:'./icons/icon-192.png',
-        data:{url:d.url||'./',conv:d.conv||null,msg:d.msg||null}
+        data:{url:d.url||'./',conv:d.conv||null,msg:d.msg||null,moment:d.moment||null}
       });
     }catch(_){}
   })());
 });
 
-/* 点通知：优先唤起已打开的窗口并直接进那个会话，没有窗口才新开 */
+/* 点通知：优先唤起已打开的窗口并直达目标（会话或那条动态），没有窗口才新开 */
 self.addEventListener('notificationclick',e=>{
   e.notification.close();
   const data=e.notification.data||{};
@@ -75,7 +75,8 @@ self.addEventListener('notificationclick',e=>{
       for(const c of cs){
         try{
           await c.focus();
-          if(data.conv) c.postMessage({t:'openConv',conv:data.conv});
+          if(data.moment) c.postMessage({t:'openMoment',moment:data.moment});
+          else if(data.conv) c.postMessage({t:'openConv',conv:data.conv});
           return;
         }catch(_){}
       }

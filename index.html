@@ -1014,7 +1014,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.17:27';
+window.__BUILD = '1030.18:29';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1052,7 +1052,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.17:27</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.18:29</div>
         </div>
       </div>
     </section>
@@ -1616,7 +1616,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.17:27</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.18:29</div>
       </div>
     </section>
 
@@ -1832,7 +1832,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.17:27</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.18:29</div>
       </div>
     </section>
 
@@ -2065,6 +2065,9 @@ try{
     pushBusy: false,      /* 订阅/退订进行中，防重复点 */
     pushSubCount: -1,     /* 服务端我这台账号的订阅数；-1 = 还没查 */
     pushEndpoint: '',     /* 本机当前订阅的 endpoint（用于判断「本机已开」） */
+    noErrServer: false,   /* p7 迁移没跑时的降级开关：错误只留本地 */
+    errServerList: [],    /* 服务端错误日志缓存（设置页「错误上报」展示） */
+    errServerBusy: false, /* 拉取/清空服务端日志进行中 */
     momentReadAt: 0,      /* 本地刚点过已读的时间戳（15 秒内压住服务端旧数字，防回闪） */
     momentRange: 'all',   /* 我的可见期设置 */
     momentCover: '',      /* 我的相册封面 URL */
@@ -2279,14 +2282,18 @@ try{
   /* ---------------- 错误队列（FR-1008）---------------- */
   function pushError(err){
     if(!S.errorQueue) S.errorQueue = [];
+    /* stack 只留前 3 行：报错位置够用，整段 stack 能把 1000 字符预算吃光 */
+    var stk = String((err && err.stack) || '').split('\n').slice(0, 3).join(' | ');
     var item = { at: new Date().toISOString(), msg: String((err && err.message) || err || 'unknown'),
-                 src: (err && err.filename) || (err && err.src) || '', line: (err && err.lineno) || 0 };
+                 src: (err && err.filename) || (err && err.src) || '', line: (err && err.lineno) || 0,
+                 stack: stk, sent: false };
     S.errorQueue.push(item);
     if(S.errorQueue.length > 50) S.errorQueue = S.errorQueue.slice(-50);
     try{ store('jw_errors', JSON.stringify(S.errorQueue)); }catch(e){}
     return item;
   }
   function loadErrors(){ S.errorQueue = loadJSON('jw_errors', []) || []; }
+  function saveErrors(){ try{ store('jw_errors', JSON.stringify(S.errorQueue || [])); }catch(e){} }
   function clearErrors(){ S.errorQueue = []; try{ unstore('jw_errors'); }catch(e){} }
 
   /* 字符串按 UTF-8 算字节数。
@@ -3874,29 +3881,47 @@ try{
      服务端 endpoint 唯一 —— 同一台设备换账号登录会改写 user_id，
      所以登记必须走 definer 函数做 upsert，不能直接 insert。 */
 
+  /* 免打扰时段随订阅上云（P7-3）：云端不知道 localStorage 里的 dnd 偏好，
+     所以订阅登记/更新时把「本地零点起的分钟数 + 时区偏移」一起写进去。
+     intlOffsetMin() 拿当前时区偏移，中国是 +480。 */
+  function intlOffsetMin(){
+    try{ return -new Date().getTimezoneOffset(); }catch(e){ return 480; }
+  }
+  function hmToMin(hm){
+    var m = String(hm || '').match(/^(\d{1,2}):(\d{2})$/);
+    if(!m) return 0;
+    return Math.min(Math.max(parseInt(m[1], 10) * 60 + parseInt(m[2], 10), 0), 1439);
+  }
+
   function savePushSubscription(sub){
     if(S.noPush) return Promise.resolve(false);
     var k = (sub && sub.keys) || {};
     if(!sub || !sub.endpoint || !k.p256dh) return Promise.resolve(false);
-    return api('/rest/v1/rpc/save_push_subscription', {
-      method: 'POST',
-      body: {
-        p_endpoint: sub.endpoint,
-        p_p256dh: k.p256dh,
-        p_auth: k.auth || '',
-        p_ua: (typeof navigator !== 'undefined' && navigator.userAgent) || '',
-        /* 「通知显示消息详情」跟着订阅走：关掉后服务端只发「新消息」不写正文。
-           Service Worker 读不到 localStorage，所以这个偏好必须落到服务端。 */
-        p_detail: !(S.prefs && S.prefs.detail === false)
-      }
-    }).then(function(){
-      S.pushEndpoint = sub.endpoint;
-      return true;
-    }).catch(function(e){
-      /* 400/404 = 迁移没跑；其余（网络抖动）保留功能，下次登录再试 */
-      if(e && (e.status === 400 || e.status === 404)) S.noPush = true;
-      return false;
-    });
+    var p = S.prefs || {};
+    var body = {
+      p_endpoint: sub.endpoint,
+      p_p256dh: k.p256dh,
+      p_auth: k.auth || '',
+      p_ua: (typeof navigator !== 'undefined' && navigator.userAgent) || '',
+      /* 「通知显示消息详情」跟着订阅走：关掉后服务端只发「新消息」不写正文。
+         Service Worker 读不到 localStorage，所以这个偏好必须落到服务端。 */
+      p_detail: !(p.detail === false),
+      /* 免打扰时段同理：不在时段内就发，命中就整晚静默 */
+      p_quiet_on: !!p.dnd,
+      p_quiet_from: hmToMin(p.dndFrom || '23:00'),
+      p_quiet_to: hmToMin(p.dndTo || '07:00'),
+      p_quiet_tz: intlOffsetMin()
+    };
+    return api('/rest/v1/rpc/save_push_subscription', { method: 'POST', body: body })
+      .then(function(){
+        S.pushEndpoint = sub.endpoint;
+        return true;
+      })
+      .catch(function(e){
+        /* 400/404 = 迁移没跑；其余（网络抖动）保留功能，下次登录再试 */
+        if(e && (e.status === 400 || e.status === 404)) S.noPush = true;
+        return false;
+      });
   }
 
   function deletePushSubscriptionRow(endpoint){
@@ -3922,6 +3947,42 @@ try{
   function pushTestSelf(){
     if(S.noPush) return Promise.reject(new Error('推送不可用'));
     return api('/rest/v1/rpc/push_test_self', { method: 'POST', body: {} });
+  }
+
+  /* ---------------- FR-1008 服务端错误看板（P7-4） ----------------
+     只写异常文本 + 页面标识，**不写任何消息内容**。
+     表本身 enable RLS 且不建 policy，只能走这三个函数。 */
+  function logClientError(msg, src, page){
+    if(S.noErrServer) return Promise.resolve(false);
+    return api('/rest/v1/rpc/log_client_error', {
+      method: 'POST',
+      body: {
+        p_msg: String(msg || '').slice(0, 1000),
+        p_src: String(src || 'error').slice(0, 32),
+        p_page: String(page || '').slice(0, 200),
+        p_ua: (typeof navigator !== 'undefined' && navigator.userAgent) || ''
+      }
+    }).then(function(){ return true; }).catch(function(e){
+      if(e && (e.status === 400 || e.status === 404)) S.noErrServer = true;
+      return false;
+    });
+  }
+
+  function loadServerErrors(limit){
+    if(S.noErrServer) return Promise.resolve([]);
+    return api('/rest/v1/rpc/my_error_logs', {
+      method: 'POST', body: { p_limit: limit || 20 }
+    }).then(function(rows){ return rows || []; })
+      .catch(function(e){
+        if(e && (e.status === 400 || e.status === 404)) S.noErrServer = true;
+        return [];
+      });
+  }
+
+  function clearServerErrors(){
+    if(S.noErrServer) return Promise.resolve(false);
+    return api('/rest/v1/rpc/clear_my_error_logs', { method: 'POST', body: {} })
+      .then(function(){ return true; }).catch(function(){ return false; });
   }
 
 /* =====================================================================
@@ -7771,8 +7832,10 @@ function refPayload(text, reply){
     var h = $('#nfHint');
     if(h){
       var vib = !p.vibrate ? '\n· 震动只有部分安卓浏览器支持，iOS 会静默跳过，这是系统限制。' : '';
+      /* P7-3：免打扰现在连系统推送一起管，文案要说清「通知中心也不会弹」，
+         否则用户会以为是没收到 */
       h.textContent = (p.dnd
-        ? '免打扰时段：' + dndLabel(p.dndFrom, p.dndTo) + '，期间不响铃不震动，但会话角标照常累计。'
+        ? '免打扰时段：' + dndLabel(p.dndFrom, p.dndTo) + '，期间不响铃不震动、不弹系统通知，但会话角标照常累计，打开应用即可补齐。'
         : '免打扰时段关闭时全天都会提醒。时段可以跨越零点（例如 23:00 – 次日 07:00）。')
         + vib;
     }
@@ -10793,6 +10856,12 @@ function closeMomentVideo(){
          都放后台跑，失败也只是一句「未开启」，不影响首屏。 */
       loadPushCount().then(paintPushCell).catch(function(){});
       setTimeout(function(){ ensurePush(); }, 1500);
+      /* 上次没上报成功的错误补发（P7-4）：只在登录后跑，未登录没有 token */
+      updateErrCount();
+      setTimeout(tryFlushErrors, 3000);
+      /* 通知冷启动：SW 在「没有已开窗口」时用 openWindow('./?c=…') 打开，
+         这条路径以前没人读参数，等于点了通知只到首页。 */
+      consumeLaunchParams();
     }).catch(function(e){
       setTab('chat');
       toast(friendly(e.message), 2600);
@@ -11473,9 +11542,11 @@ function closeMomentVideo(){
       .catch(function(){});
   }
 
-  /* 「通知显示详情」改动后要把新偏好同步到订阅记录，否则锁屏通知照旧带正文 */
-  function syncPushDetail(){
+  /* 「通知显示详情」和「免打扰时段」改动后要把新偏好同步到订阅记录，
+     否则锁屏通知照旧带正文、半夜照旧弹（P7-3：偏好只在本地，云端不知道） */
+  function syncPushPrefs(){
     if(!pushSupported() || pushState() !== '已授权') return;
+    if(!(S.prefs && S.prefs.push)) return;
     swReady()
       .then(function(reg){ return reg.pushManager.getSubscription(); })
       .then(function(sub){ if(sub) return savePushSubscription(sub.toJSON ? sub.toJSON() : sub); })
@@ -11502,7 +11573,7 @@ function closeMomentVideo(){
     }
     items.push({ label: '状态：' + pushStatusText() + ' · 权限：' + st, fn: function(){} });
     items.push({ label: '说明', fn: function(){
-      toast('推送走系统通知：应用关闭、手机锁屏也能收到。同一会话连续多条只保留最新一条通知', 4200);
+      toast('推送走系统通知：应用关闭、手机锁屏也能收到聊天新消息和朋友圈的赞与互动。同一会话连续多条只保留最新一条', 4600);
     }});
     items.push({ label: '关闭', fn: function(){} });
     openSheet(items);
@@ -11516,6 +11587,9 @@ function closeMomentVideo(){
         var c = convById(d.conv);
         if(c) openConv(c);
         else loadConvs().then(function(){ var c2 = convById(d.conv); if(c2) openConv(c2); }).catch(function(){});
+      } else if(d.t === 'openMoment' && d.moment){
+        /* 朋友圈互动通知：直接进那条动态的详情页 */
+        openMomentById(d.moment);
       } else if(d.t === 'pushResub'){
         ensurePush();
       }
@@ -11637,15 +11711,39 @@ function closeMomentVideo(){
 
   /* ================= FR-1008 错误监控上报 =================
      全局兜错：window.error / unhandledrejection 都收进本地队列（最多 50 条），
-     设置页「错误上报」可查看 / 清除。演示阶段只存本地，不真正打后端 RPC，
-     等 report_error 迁移跑过再在 tryFlushErrors 里启用上报。 */
+     设置页「错误上报」可查看 / 清除。
+     P7-4：本地队列里标了 sent=false 的，登录态下逐条上报到 error_logs；
+     上报成功标 sent=true 并存回 localStorage，所以重开也不会重复灌。
+     只传异常文本 + 页面标识，**绝不传消息内容**。 */
   function updateErrCount(){
-    var c = $('#setErrCnt'); if(c) c.textContent = (S.errorQueue ? S.errorQueue.length : 0);
+    var c = $('#setErrCnt');
+    if(c){
+      var n = (S.errorQueue ? S.errorQueue.length : 0);
+      var pend = (S.errorQueue || []).filter(function(x){ return !x.sent; }).length;
+      c.textContent = pend ? (n + ' 条 · 待上报 ' + pend) : n;
+    }
   }
+
   function tryFlushErrors(){
-    if(S.noErrReporter) return;          /* 没后端就只留本地 */
-    /* 演示：暂不上报，保留本地队列供查看 */
+    if(S.noErrServer || !S.sess) return;
+    var q = (S.errorQueue || []).filter(function(x){ return !x.sent; }).slice(0, 8);
+    if(!q.length) return;
+    var page = S.screen || '';
+    /* 串行发：并发 8 条打同一张表没必要，而且失败时更容易定位是哪条炸的 */
+    (function step(i){
+      if(i >= q.length) return;
+      var it = q[i];
+      logClientError(it.msg + (it.stack ? '\n' + it.stack : ''), it.src ? 'error' : 'rejection', page)
+        .then(function(ok){
+          if(ok){ it.sent = true; }
+          step(i + 1);
+        })
+        .catch(function(){ step(i + 1); });
+    })(0);
+    /* 标记落盘延后一拍：上面是异步链，等全部走完再存 */
+    setTimeout(function(){ saveErrors(); updateErrCount(); }, 2600);
   }
+
   function openErrorsSheet(){
     var sh = $('#sheet'); if(!sh) return;
     sh.innerHTML = '';
@@ -11658,14 +11756,62 @@ function closeMomentVideo(){
       var r = el('div', 'frow');
       var left = el('div');
       left.appendChild(el('div', '', (it.msg || '').slice(0, 60)));
-      left.appendChild(el('div', 'dim', (it.at || '') + (it.src ? (' · ' + it.src + ':' + it.line) : '')));
+      left.appendChild(el('div', 'dim',
+        (it.at || '').replace('T', ' ').slice(0, 19)
+        + (it.src ? (' · ' + String(it.src).split('/').pop() + ':' + it.line) : '')
+        + (it.sent ? ' · 已上报' : '')));
       r.appendChild(left);
       box.appendChild(r);
     });
     fc.appendChild(box);
+
+    /* 服务端最近 20 条：本机清了也还在，用来查「别人手机上」的报错 */
+    var srvBox = el('div', 'frows');
+    function renderSrv(){
+      srvBox.innerHTML = '';
+      if(S.noErrServer){
+        srvBox.appendChild(el('div', 'frow', '服务端看板未开通（迁移未执行）'));
+        return;
+      }
+      if(S.errServerBusy){ srvBox.appendChild(el('div', 'frow', '读取中…')); return; }
+      var rows = S.errServerList || [];
+      if(!rows.length){ srvBox.appendChild(el('div', 'frow', '服务端暂无记录')); return; }
+      rows.forEach(function(it){
+        var r = el('div', 'frow');
+        var left = el('div');
+        left.appendChild(el('div', '', String(it.msg || '').slice(0, 60)));
+        left.appendChild(el('div', 'dim',
+          String(it.created_at || '').replace('T', ' ').slice(0, 19) + ' · ' + (it.src || 'error')));
+        r.appendChild(left);
+        srvBox.appendChild(r);
+      });
+    }
+    var srvHead = el('div', 'fhead');
+    srvHead.appendChild(el('div', 'fname', '服务端最近 20 条'));
+    fc.appendChild(srvHead);
+    renderSrv();
+    fc.appendChild(srvBox);
+    if(!S.noErrServer && !S.errServerList.length && !S.errServerBusy){
+      S.errServerBusy = true;
+      loadServerErrors(20).then(function(rows){
+        S.errServerBusy = false;
+        S.errServerList = rows || [];
+        renderSrv();
+      }).catch(function(){ S.errServerBusy = false; renderSrv(); });
+    }
+
     var clr = el('div', 'fact danger', '清除本地错误记录');
-    clr.addEventListener('click', function(){ clearErrors(); updateErrCount(); closeSheet(); toast('已清除'); });
+    clr.addEventListener('click', function(){ clearErrors(); updateErrCount(); closeSheet(); toast('已清除本地记录'); });
     fc.appendChild(clr);
+    var clr2 = el('div', 'fact danger', '清除服务端记录');
+    clr2.addEventListener('click', function(){
+      clearServerErrors().then(function(ok){
+        S.errServerList = [];
+        closeSheet();
+        toast(ok ? '已清除服务端记录' : '清除失败，请稍后再试');
+      });
+    });
+    fc.appendChild(clr2);
     var done = el('div', 'fact', '完成'); done.addEventListener('click', closeSheet); fc.appendChild(done);
     sh.appendChild(fc);
     if(window.__fillImg) window.__fillImg();
@@ -11705,9 +11851,13 @@ function closeMomentVideo(){
 
   bind('#nfDnd', 'click', function(){ togglePref('dnd'); });
 
-  bind('#nfFromVal', 'change', function(){ setPref('dndFrom', this.value || '23:00'); renderNotify(); });
+  bind('#nfFromVal', 'change', function(){
+    setPref('dndFrom', this.value || '23:00'); renderNotify(); syncPushPrefs();
+  });
 
-  bind('#nfToVal', 'change', function(){ setPref('dndTo', this.value || '07:00'); renderNotify(); });
+  bind('#nfToVal', 'change', function(){
+    setPref('dndTo', this.value || '07:00'); renderNotify(); syncPushPrefs();
+  });
 
   bind('#stClear', 'click', clearLocalCache);
 
@@ -12289,6 +12439,39 @@ function closeMomentVideo(){
     }
   }
 
+  /* 从通知点进来：只有 id，没有对象。交给 openMomentDetail 走「先渲染再静默刷新」
+     同一套路径，冷启动（S.moments 还是空）也能落到位。 */
+  function openMomentById(mid){
+    var id = Number(mid);
+    if(!id || isNaN(id)) return;
+    var hit = momentById(id);
+    if(hit){ openMomentDetail(hit); return; }
+    openMomentDetail({ id: id });
+  }
+
+  /* 冷启动落地：SW 在没有已开窗口时用 openWindow('./?c=<conversation>') /
+     './?m=<moment>' 打开新窗口，所以启动后必须自己读一次参数。
+     读完立刻 replaceState 清掉 —— 否则用户刷新一下又跳一次，地址栏也难看。 */
+  function consumeLaunchParams(){
+    var s = '';
+    try{ s = location.search || ''; }catch(e){ return; }
+    if(!s) return;
+    var mc = s.match(/[?&]c=([^&]+)/);
+    var mm = s.match(/[?&]m=([^&]+)/);
+    if(!mc && !mm) return;
+    try{ history.replaceState(history.state, '', location.pathname); }catch(e){}
+    /* 等一帧再跳：此刻 tab 刚切到会话列表，立刻 goPage 会跟渲染抢节点 */
+    setTimeout(function(){
+      if(mm){
+        openMomentById(decodeURIComponent(mm[1]));
+        return;
+      }
+      var cid = decodeURIComponent(mc[1]);
+      var conv = convById(cid);
+      if(conv) openConv(conv);
+    }, 160);
+  }
+
   /* ---------------- 设置页 ---------------- */
   function openSettings(){
     goPage('settings', 'me');
@@ -12465,7 +12648,8 @@ function closeMomentVideo(){
     if(k === 'sound' && !was) beep();
     if(k === 'vibrate' && !was) buzz();
     if(k === 'dnd') toast(was ? '免打扰已关闭' : '免打扰已开启');
-    if(k === 'detail') syncPushDetail();
+    /* 这三项都会改变「云端该不该弹、弹多少内容」，改动后立刻同步到订阅记录 */
+    if(k === 'detail' || k === 'dnd') syncPushPrefs();
   }
 
   function openFontSheet(){
@@ -13066,7 +13250,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.17:27';
+    var BUILD='1030.18:29';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
