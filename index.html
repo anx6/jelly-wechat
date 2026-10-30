@@ -1014,7 +1014,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.18:46';
+window.__BUILD = '1030.19:45';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1052,7 +1052,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.18:46</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.19:45</div>
         </div>
       </div>
     </section>
@@ -1616,7 +1616,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.18:46</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.19:45</div>
       </div>
     </section>
 
@@ -1837,7 +1837,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.18:46</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.19:45</div>
       </div>
     </section>
 
@@ -13306,7 +13306,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.18:46';
+    var BUILD='1030.19:45';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
@@ -13427,7 +13427,7 @@ function closeMomentVideo(){
     /* user：是好友就直接进聊天；不是（果冻号命中陌生人）就去添加朋友页 */
     var f = (S.friends || []).find(function(x){ return String(x.user_id) === String(rid); });
     if(f){
-      return api('/rest/v1/rpc/get_or_create_direct', { method: 'POST', body: { p_peer: rid } })
+      return api('/rest/v1/rpc/get_or_create_direct', { method: 'POST', body: { p_other: rid } })
         .then(function(nid){
           return loadConvs().then(function(){
             var c5 = convById(nid);
