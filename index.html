@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -40,7 +40,7 @@
              color-scheme:dark; }
   html,body{height:100%;overflow:hidden;overscroll-behavior:none;}
   body{font-family:'Baloo 2','PingFang SC','Microsoft YaHei',sans-serif;color:var(--ink);background:var(--cream);position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;}
-  .app{position:absolute;left:0;right:0;top:var(--vt,0px);height:var(--vh,100%);overflow:hidden;display:flex;flex-direction:column;padding-top:calc(env(safe-area-inset-top) * var(--sa,1));padding-bottom:calc(env(safe-area-inset-bottom) * var(--sa,1));background:var(--cream);background-image:radial-gradient(#ffd23f44 1.5px, transparent 1.6px);background-size:22px 22px;}
+  .app{position:absolute;left:0;right:0;top:0;height:var(--vh,100%);overflow:hidden;display:flex;flex-direction:column;padding-top:calc(env(safe-area-inset-top) * var(--sa,1));padding-bottom:calc(env(safe-area-inset-bottom) * var(--sa,1));background:var(--cream);background-image:radial-gradient(#ffd23f44 1.5px, transparent 1.6px);background-size:22px 22px;}
   #screens{flex:1;position:relative;overflow:hidden;}
   .screen{position:absolute;inset:0;display:none;flex-direction:column;opacity:0;transition:opacity .2s ease;}
   .screen.active{display:flex;opacity:1;}
@@ -199,13 +199,28 @@
   .bubble.bigemoji{font-size:38px;line-height:1.15;padding:6px 10px;background:transparent;border-color:transparent;box-shadow:none;}
   .msg.out .bubble.bigemoji{background:transparent;box-shadow:none;color:inherit;}
 
-  .inputbar{display:flex;gap:7px;padding:8px 10px;border-top:4px solid var(--ink);background:var(--card);align-items:flex-end;flex-shrink:0;}
-  .ibtn{width:38px;height:38px;border:3px solid var(--ink);border-radius:12px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
-  .field{flex:1;background:var(--soft);border:3px solid var(--ink);border-radius:16px;padding:9px 12px;font-size:13.5px;color:var(--dim);font-weight:600;min-width:0;}
-  .send{background:var(--lime);border:3px solid var(--ink);border-radius:14px;padding:9px 15px;font-weight:800;font-size:13px;box-shadow:2px 2px 0 var(--ink);flex-shrink:0;display:none;}
-  /* 微信式：有文字时「发送」顶替 ＋ 的位置 */
-  .inputbar.typing .send{display:block;}
-  .inputbar.typing #btnMore{display:none;}
+  /* 微信式输入栏：浅灰底 + 一根细分割线，图标无边框，输入框是白色胶囊 */
+  .inputbar{display:flex;gap:8px;padding:7px 8px;border-top:1px solid var(--line-soft);background:var(--card2);align-items:flex-end;flex-shrink:0;}
+  .ibtn{width:34px;height:34px;border:0;border-radius:999px;background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--txt2);padding:0;transition:background .12s,transform .12s;}
+  .ibtn svg{width:26px;height:26px;display:block;pointer-events:none;}
+  .ibtn:active{background:var(--skel);transform:scale(.94);}
+  .ibtn.rec{background:var(--pink);color:#fff;} /* 录音中：说话按钮亮起 */
+  .send{background:var(--lime);border:0;border-radius:9px;padding:8px 13px;font-weight:800;font-size:14px;flex-shrink:0;display:none;color:#14301f;height:34px;}
+  .send:disabled{opacity:.55;}
+  .send:active{transform:scale(.96);}
+  /* 微信式：有文字时「发送」顶替 ＋ 的位置。
+     类名必须避开 .typing —— 顶部「对方正在输入」指示条那个 .typing 是
+     position:absolute;top:52px，一旦套到输入栏上，输入栏会被拽到标题栏下方。 */
+  .inputbar.has-text .send{display:block;}
+  .inputbar.has-text #btnMore{display:none;}
+  /* ＋ 面板：从底部展开的四列宫格（占键盘位置，和表情面板同一套机制） */
+  .morepanel{height:0;overflow:hidden;background:var(--card2);border-top:0 solid var(--line-soft);flex-shrink:0;transition:height .2s ease;}
+  .morepanel.on{height:228px;border-top-width:1px;}
+  .moregrid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px 6px;padding:16px 10px;}
+  .morecell{display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;}
+  .morecell .mico{width:56px;height:56px;border-radius:17px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:25px;box-shadow:0 1px 3px #00000012;}
+  .morecell:active .mico{transform:scale(.94);}
+  .morecell .mnm{font-size:11.5px;color:var(--txt2);font-weight:700;}
   .send:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink);}
 
   /* contacts */
@@ -387,11 +402,7 @@
   .bubble.locard .locaddr{font-size:11.5px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
   /* ---------------- ＋ 菜单（FR-305/306/307）---------------- */
-  .morepanel{position:absolute;left:10px;bottom:54px;background:var(--card);border-radius:16px;padding:10px;
-    display:flex;gap:10px;box-shadow:0 8px 24px #00000026;z-index:60;}
-  .morecell{display:flex;flex-direction:column;align-items:center;gap:5px;width:56px;cursor:pointer;}
-  .morecell .mico{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;}
-  .morecell .mnm{font-size:11px;color:var(--txt2);}
+  /* 旧的 ＋ 浮层样式已移除：＋ 面板改成底部宫格（见 .inputbar 附近的 .morepanel） */
   .locinput{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line-soft);border-radius:9px;background:var(--card2);color:var(--ink);font-size:14px;margin-bottom:8px;}
   .frow.clickable{cursor:pointer;color:var(--purple);}
   .frow.clickable:active{background:var(--card2);}
@@ -549,9 +560,12 @@
   .lfoot{margin-top:16px;font-size:10.5px;font-weight:700;color:var(--dim);letter-spacing:.5px;}
 
   /* ===== compose ===== */
-  .field{flex:1;min-width:0;background:var(--soft);border:3px solid var(--ink);border-radius:16px;padding:10px 12px;font-family:inherit;font-size:16px;font-weight:700;color:var(--ink);resize:none;max-height:88px;line-height:1.35;outline:none;-webkit-user-select:text;user-select:text;transition:background .15s,box-shadow .15s;}
-  .field::placeholder{color:var(--dim);font-size:13.5px;font-weight:600;}
-  .field:focus{background:var(--card);box-shadow:0 0 0 3px #8be04e88;}
+  .field{flex:1;min-width:0;background:var(--card);border:0;border-radius:18px;padding:9px 13px;font-family:inherit;
+         /* 必须 ≥16px：iOS 聚焦小于 16px 的输入框会自动放大页面，视觉视口被缩放后
+            整个 App（含标题栏）会看起来被推移、错位 —— 这就是「输入框位置有时异常」的元凶之一 */
+         font-size:max(16px, calc(15px * var(--fs)));font-weight:600;color:var(--ink);resize:none;max-height:104px;line-height:1.35;outline:none;-webkit-user-select:text;user-select:text;box-shadow:0 1px 2px #00000010;transition:box-shadow .15s;}
+  .field::placeholder{color:var(--dim);font-weight:600;}
+  .field:focus{background:var(--card);box-shadow:0 0 0 2px #8be04e55;}
   .send{border:3px solid var(--ink);border-radius:14px;padding:0 14px;height:44px;background:var(--lime);font-family:inherit;font-size:13.5px;font-weight:800;color:var(--ink);box-shadow:3px 3px 0 var(--ink);flex-shrink:0;transition:transform .1s,background .2s,box-shadow .2s,color .2s;}
   .send:active{transform:translate(3px,3px);box-shadow:none;}
   .send:disabled{background:var(--skel);color:var(--dim);box-shadow:3px 3px 0 #c9c2d6;transform:none;}
@@ -575,8 +589,10 @@
      4 个字一行放得下（旧版 40px 竖排被裁成「免打/扰」的锅就是宽度不够）。
      间距从 .row 挪到 .rsw（仅会话列表，好友/群列表不受影响）。 */
   #roomList .rsw{position:relative;margin:7px 10px;border-radius:22px;}
-  #roomList .rsw>.row{margin:0;}
-  #roomList .swipeA{position:absolute;inset:0;display:flex;align-items:stretch;justify-content:flex-end;pointer-events:none;border-radius:22px;}
+  /* 关键分层：.swipeA 是绝对定位、.row 是静态定位，按 CSS 绘制顺序绝对定位会盖在上面，
+     表现为「没左滑也露出按钮」。必须给 .row 显式 z-index 把它压回上层。 */
+  #roomList .rsw>.row{margin:0;position:relative;z-index:2;}
+  #roomList .swipeA{position:absolute;inset:0;z-index:1;display:flex;align-items:stretch;justify-content:flex-end;pointer-events:none;border-radius:22px;}
   #roomList .swgrp{display:flex;align-items:center;padding:8px 4px;gap:5px;}
   #roomList .swbtn{pointer-events:auto;display:flex;align-items:center;justify-content:center;width:58px;height:100%;max-height:72px;border-radius:15px;border:3px solid var(--ink);font-size:11.5px;font-weight:800;color:#1a1a2e;cursor:pointer;box-shadow:2px 2px 0 var(--ink);padding:0;text-align:center;line-height:1.2;white-space:nowrap;}
   #roomList .swbtn.pin{background:var(--yellow);}
@@ -995,7 +1011,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.12:26';
+window.__BUILD = '1030.15:12';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1033,7 +1049,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.12:26</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.15:12</div>
         </div>
       </div>
     </section>
@@ -1141,25 +1157,41 @@ try{
       <div class="inputbar" id="inputBar">
         <!-- FR-1104 引用条：absolute 挂在 inputbar 内（relative 基准），浮在输入栏上方不挤压输入行 -->
         <div class="quotebar" id="quoteBar" style="display:none"></div>
-        <!-- 微信最新版排布：[🎤按住说话] [输入框] [😀] [＋]，发送键只在有文字时顶替 ＋ 的位置。
-             旧版一行塞 @/＋/图/🎤/框/😀/发送 七个元素，375px 宽下输入框被挤到只剩一条缝。 -->
-        <div class="ibtn" id="btnVoice" role="button" aria-label="按住说话">🎤</div>
+        <!-- 微信式输入栏：[语音] [输入框] [表情] [＋]，发送键只在有文字时顶替 ＋。
+             图标一律内联 SVG（不再用带黑框的方块按钮），留白对齐微信，横向不再拥挤。 -->
+        <button class="ibtn" id="btnVoice" type="button" aria-label="按住说话">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <circle cx="12" cy="12" r="9.2"/><path d="M12 8.2v7.6"/><path d="M8.6 10.2a3.4 3.4 0 0 0 0 3.6"/><path d="M15.4 10.2a3.4 3.4 0 0 1 0 3.6"/>
+          </svg>
+        </button>
         <textarea class="field" id="msgInput" rows="1" maxlength="2000" placeholder="说点什么…"></textarea>
-        <div class="ibtn" id="btnEmoji" role="button" aria-label="表情">😀</div>
-        <div class="ibtn" id="btnMore" role="button" aria-label="更多功能">＋</div>
+        <button class="ibtn" id="btnEmoji" type="button" aria-label="表情">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <circle cx="12" cy="12" r="9.2"/><circle cx="9" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1.1" fill="currentColor" stroke="none"/><path d="M8.2 14.2a4.4 4.4 0 0 0 7.6 0"/>
+          </svg>
+        </button>
+        <button class="ibtn" id="btnMore" type="button" aria-label="更多功能">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <circle cx="12" cy="12" r="9.2"/><path d="M12 8v8M8 12h8"/>
+          </svg>
+        </button>
         <button class="send" id="sendBtn" type="button" aria-label="发送消息" disabled>发送</button>
         <input type="file" id="filePick" accept="image/*" multiple style="display:none">
         <input type="file" id="filePickVideo" accept="video/*" style="display:none">
         <input type="file" id="filePickFile" accept="*/*" style="display:none">
+        <input type="file" id="filePickCam" accept="image/*" capture="environment" style="display:none">
         <!-- 群聊 @ 选人（P2-5）：从 ＋ 面板进（群聊才显示），向上弹出，选完自动补一个空格 -->
         <div class="atbox" id="atBox"></div>
-        <!-- ＋ 菜单（FR-305/306/307）：浮在输入栏上方，点 ＋ 开关 -->
-        <div class="morepanel" id="morePanel" style="display:none">
-          <div class="morecell" id="moreAt" role="button" style="display:none"><div class="mico" style="background:var(--pink)">@</div><div class="mnm">提醒某人</div></div>
-          <div class="morecell" id="moreAlbum" role="button"><div class="mico" style="background:var(--lime)">🖼</div><div class="mnm">相册</div></div>
-          <div class="morecell" id="moreVideo" role="button"><div class="mico" style="background:var(--sky)">🎬</div><div class="mnm">视频</div></div>
-          <div class="morecell" id="moreFile" role="button"><div class="mico" style="background:var(--purple)">📄</div><div class="mnm">文件</div></div>
-          <div class="morecell" id="moreLoc" role="button"><div class="mico" style="background:var(--pink)">📍</div><div class="mnm">位置</div></div>
+      </div>
+      <!-- ＋ 面板（FR-305/306/307）：微信式，从底部展开四列宫格，占键盘位置 -->
+      <div class="morepanel" id="morePanel">
+        <div class="moregrid">
+          <div class="morecell" id="moreAlbum" role="button"><div class="mico">🖼</div><div class="mnm">照片</div></div>
+          <div class="morecell" id="moreCam" role="button"><div class="mico">📷</div><div class="mnm">拍摄</div></div>
+          <div class="morecell" id="moreVideo" role="button"><div class="mico">🎬</div><div class="mnm">视频</div></div>
+          <div class="morecell" id="moreLoc" role="button"><div class="mico">📍</div><div class="mnm">位置</div></div>
+          <div class="morecell" id="moreFile" role="button"><div class="mico">📄</div><div class="mnm">文件</div></div>
+          <div class="morecell" id="moreAt" role="button" style="display:none"><div class="mico">@</div><div class="mnm">提醒某人</div></div>
         </div>
       </div>
       <!-- 表情面板（P2 / FR-308）：占键盘位置从底部展开 -->
@@ -1581,7 +1613,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.12:26</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.15:12</div>
       </div>
     </section>
 
@@ -1797,7 +1829,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.12:26</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.15:12</div>
       </div>
     </section>
 
@@ -6949,9 +6981,11 @@ function refPayload(text, reply){
   function refreshSend(){
     var empty = !inp || inp.value.trim().length === 0;
     if(sendBtn) sendBtn.disabled = empty;
-    /* 微信式输入栏：有文字时「发送」顶替 ＋ 的位置（CSS .typing 分支） */
+    /* 微信式输入栏：有文字时「发送」顶替 ＋ 的位置。
+       类名用 has-text，别用 typing —— .typing 是「对方正在输入」指示条的绝对定位样式，
+       套到 .inputbar 上会把输入栏拽到 top:52px（标题栏下面），页面看起来整块错位。 */
     var bar = sendBtn && sendBtn.closest ? sendBtn.closest('.inputbar') : null;
-    if(bar) bar.classList.toggle('typing', !empty);
+    if(bar) bar.classList.toggle('has-text', !empty);
   }
 
   var emoCat = '常用';
@@ -7001,6 +7035,8 @@ function refPayload(text, reply){
     var on = (force === undefined) ? !p.classList.contains('on') : !!force;
     p.classList.toggle('on', on);
     if(on){
+      /* ＋ 面板和表情面板抢同一块位置：开一个必须关另一个 */
+      var mp = $('#morePanel'); if(mp) mp.classList.remove('on');
       if(inp) inp.blur();          /* 收键盘，否则面板会被键盘挡住 */
       renderEmo();
       setTimeout(scrollBottom, 260);
@@ -10330,6 +10366,8 @@ function closeMomentVideo(){
   if(inp){
     inp.addEventListener('input', function(){ autoGrow(); refreshSend(); onAtInput(); pingTyping(); });
     inp.addEventListener('focus', function(){
+      /* 打字时两个底部面板都该收起（面板和键盘抢同一块空间） */
+      var mp = $('#morePanel'); if(mp) mp.classList.remove('on');
       setTimeout(scrollBottom, 320);
       setTimeout(vvFit, 320); setTimeout(vvFit, 680);
     });
@@ -10357,7 +10395,22 @@ function closeMomentVideo(){
     autoGrow(); refreshSend();
   }
 
-  /* 输入栏改微信式后不再有独立图片按钮，选图统一走 ＋ 面板的「相册」（moreAlbum）。
+  /* ---- FR-305/306/307 ＋ 面板（微信式：从底部展开宫格，和表情面板互斥） ----
+     放在块外：输入框 focus / 发送完都要能收起它，块内声明在外面看不见。 */
+  var btnMore = $('#btnMore');
+  var morePanel = $('#morePanel');
+  function toggleMore(on){
+    if(!morePanel) return;
+    var show = (on == null) ? !morePanel.classList.contains('on') : !!on;
+    morePanel.classList.toggle('on', show);
+    if(show){
+      toggleEmo(false);           /* 表情面板和 ＋ 面板抢同一块位置，开一个就关另一个 */
+      try{ inp.blur(); }catch(e){}/* 收起键盘：面板就是键盘的位置 */
+      setTimeout(scrollBottom, 220);
+    }
+  }
+
+  /* 输入栏改微信式后不再有独立图片按钮，选图统一走 ＋ 面板的「照片」（moreAlbum）。
      注意：下面这坨绑定原来嵌在 if(pickBtn && filePick) 里 —— 那个按钮一删，
      表情面板 / 群聊入口 / 公告条 / ＋ 菜单全都会失灵，所以必须拆出来单独成块。 */
   {
@@ -10424,14 +10477,7 @@ function closeMomentVideo(){
       sendPics(picked);
     });
 
-    /* ---- FR-305/306/307 ＋ 菜单 ---- */
-    var btnMore = $('#btnMore');
-    var morePanel = $('#morePanel');
-    function toggleMore(on){
-      if(!morePanel) return;
-      var show = (on == null) ? (morePanel.style.display === 'none') : !!on;
-      morePanel.style.display = show ? 'flex' : 'none';
-    }
+    /* ---- FR-305/306/307 ＋ 面板的点击委托（开关函数在块外 toggleMore） ---- */
     if(btnMore) btnMore.addEventListener('click', function(){ toggleMore(); });
     if(morePanel) morePanel.addEventListener('click', function(e){
       var c = e.target && e.target.closest ? e.target.closest('.morecell') : null;
@@ -10440,9 +10486,15 @@ function closeMomentVideo(){
       var id = c.id;
       if(id === 'moreAt'){ insertAtSign(); }
       else if(id === 'moreAlbum'){ if(filePick) filePick.click(); }
+      else if(id === 'moreCam'){ var fc = $('#filePickCam'); if(fc) fc.click(); }
       else if(id === 'moreVideo'){ var fv = $('#filePickVideo'); if(fv) fv.click(); }
       else if(id === 'moreFile'){ var ff = $('#filePickFile'); if(ff) ff.click(); }
       else if(id === 'moreLoc'){ openLocationPicker(); }
+    });
+    var filePickCam = $('#filePickCam');
+    if(filePickCam) filePickCam.addEventListener('change', function(e){
+      var fs = e.target.files; var picked = fs ? Array.prototype.slice.call(fs) : []; e.target.value = '';
+      if(picked.length) sendPics(picked);
     });
     var filePickVideo = $('#filePickVideo');
     if(filePickVideo) filePickVideo.addEventListener('change', function(e){
@@ -12599,24 +12651,41 @@ function closeMomentVideo(){
     var baseH = Math.round(vv.height) || window.innerHeight || 0;
     var timer = 0, touching = false, dirty = false;
     var apply = function(){
-      if(touching){ dirty = true; return; }
+      if(touching){ dirty = true; return; }  /* 手势中不改高度，否则列表会跳 */
       dirty = false;
       var h = Math.round(vv.height) || 0;
-      var t = Math.round(vv.offsetTop) || 0;
       if(h <= 120) return;
       if(h > baseH) baseH = h;
       if(!baseH) baseH = window.innerHeight || 0;
       var root = document.documentElement.style;
       var kbd = (baseH - h) > 120;
       root.setProperty('--vh', h + 'px');
-      root.setProperty('--vt', (kbd ? t : 0) + 'px');
+      /* 永远不跟随 offsetTop 位移。
+         旧版在键盘弹出时把 visualViewport.offsetTop 写进 --vt 当作 top，
+         iOS 在聚焦输入框 / 跳转消息时会把视觉视口「平移」一段，offsetTop 变成非 0；
+         等它自己复位时只发 scroll 事件（我们当初为了防抖刻意没监听），值就永远留住了 ——
+         结果整个 App 连同标题栏被推到屏幕中间，上方空出一大片。
+         正确做法：App 永远贴顶，只让高度跟着可见区缩。 */
+      root.setProperty('--vt', '0px');
       root.setProperty('--sa', kbd ? '0' : '1');
+      /* body 是 fixed，能滚的只有 iOS 的视觉视口：一旦发现被平移，立刻归位 */
+      if(kbd && ((window.scrollY || window.pageYOffset || 0) > 0 || (vv.offsetTop || 0) > 0)){
+        try{ window.scrollTo(0, 0); }catch(e){}
+        try{ if(document.scrollingElement) document.scrollingElement.scrollTop = 0; }catch(e){}
+      }
     };
     vvFit = function(){
       if(timer) clearTimeout(timer);
       timer = setTimeout(function(){ timer = 0; apply(); }, 70);
     };
     vv.addEventListener('resize', vvFit);
+    /* scroll 只用来「归位」，绝不参与高度/位移计算（参与就会重演上下乱窜的老毛病） */
+    vv.addEventListener('scroll', function(){
+      if(!document.hidden && (vv.offsetTop || 0) > 0){
+        try{ window.scrollTo(0, 0); }catch(e){}
+        vvFit();
+      }
+    });
     var endTouch = function(){ touching = false; if(dirty){ vvFit(); } };
     window.addEventListener('touchstart', function(){ touching = true; }, { passive: true });
     window.addEventListener('touchend', endTouch, { passive: true });
@@ -12647,7 +12716,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.12:26';
+    var BUILD='1030.15:12';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
