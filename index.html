@@ -1015,7 +1015,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.22:45';
+window.__BUILD = '1031.03:24';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1053,7 +1053,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.22:45</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1031.03:24</div>
         </div>
       </div>
     </section>
@@ -1617,7 +1617,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.22:45</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1031.03:24</div>
       </div>
     </section>
 
@@ -1838,7 +1838,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.22:45</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1031.03:24</div>
       </div>
     </section>
 
@@ -2103,6 +2103,11 @@ try{
     lastAt: null,         /* 当前会话最后一条消息的服务器时间（已读位点） */
     lastShownAt: 0,       /* 已渲染的最后一条消息时间（用于插入时间分割条） */
     ids: {},              /* 已渲染的消息 id */
+    /* 向上翻页（P11）。这是「会话超过 80 条后老消息看不到」的补口：
+       首屏只拉最近 80 条，更早的靠滚动到顶时按 id=lt 游标续拉。
+       两个标记都按会话重置，否则换会话会带着上一个会话的「到底了」状态。 */
+    earlierDone: false,   /* 当前会话已经拉到头了，不再请求 */
+    earlierBusy: false,   /* 请求在飞，防重入（滚动事件一秒能触发几十次） */
     pending: {},          /* client_msg_id -> { text, cid } 发送中的消息 */
     msgCache: {},         /* 会话id -> { rows, lastId, seen, used } 已确认消息的内存缓存
                              目的：从列表点进会话时立刻用缓存渲染，不必等网络往返 */
@@ -2945,6 +2950,11 @@ try{
         });
         msgsBox.innerHTML = '';
         S.lastId = 0; S.ids = {}; S.lastShownAt = 0;
+        S.earlierDone = false; S.earlierBusy = false;
+        /* 这一页不满 80，说明服务器上这个会话就这么多消息 → 直接标到底，
+           省掉用户日后滑到顶时那次必然为空的请求。
+           必须放在上面那两行重置**之后**：写在前面会被 false 覆盖掉（test_p11 A2 抓到的）。 */
+        if(rows.length < 80) S.earlierDone = true;
         /* P3-11：rows 已 reverse 成升序，rows[0] 是服务器窗里最小 id。
            archBefore 只取 id < 该值的最近 50 条，避免一次性把几万条老消息全塞进 DOM。
            没服务器行（会话被清空但本机有存档）时不算 archHead，
@@ -3010,6 +3020,44 @@ try{
         return fetchMessages(initial, true);
       }
       throw e;
+    });
+  }
+
+  /* ---------------- 向上翻页：取更早的消息（P11）----------------
+     首屏只拉最近 80 条，这个负责往上续。用 id=lt 游标而不是 offset/range：
+     offset 在有新消息插入时会整页错位（同一个人往上翻，翻着翻着会看到重复的行），
+     游标只认「比当前 DOM 里最早那条更早」，新消息再多也不影响这一页。
+     返回升序，方便直接接在前面。 */
+  function fetchEarlierMessages(limit){
+    if(!S.cur) return Promise.resolve([]);
+    var before = earliestRenderedId();
+    if(!before) return Promise.resolve([]);
+    var selBase = 'id,sender_id,content,created_at,msg_type,client_msg_id,deleted_at';
+    var sel = S.noMentions ? selBase : (selBase + ',mentions');
+    var q = '/rest/v1/messages?select=' + sel
+      + '&conversation_id=eq.' + S.cur.id
+      + '&id=lt.' + before
+      + '&order=id.desc&limit=' + (limit || 50);
+    return api(q).then(function(rows){
+      rows = rows || [];
+      /* FR-806：拉黑期间对方发的历史消息也要挡，否则往上翻就翻出来了。
+         第三参 isDirect 只在单聊为真 —— 群聊走成员维度，不按 block 过滤发送者。 */
+      if(S.blockedList && S.blockedList.length && S.cur && S.cur.ctype !== 'group'){
+        rows = dropBlockedMsgs(rows, blockMap(S.blockedList), true);
+      }
+      rows.reverse();            /* 拉回来是 id 倒序，翻成升序 */
+      /* 比当前最早一条还晚的、或已经渲染过的，一律剔掉：
+         并发时（翻页请求在飞、用户又发了新消息）服务端可能返回边界重叠的行。 */
+      var seen = {}, out = [];
+      for(var i = 0; i < rows.length; i++){
+        var m = rows[i];
+        if(!m || !m.id) continue;
+        if(Number(m.id) >= before) continue;
+        if(S.ids[m.id] || seen[m.id]) continue;
+        seen[m.id] = 1;
+        out.push(m);
+      }
+      return out;
     });
   }
 
@@ -5857,6 +5905,7 @@ function refPayload(text, reply){
   function renderCached(cache){
     msgsBox.innerHTML = '';
     S.lastId = 0; S.ids = {}; S.lastShownAt = 0;
+    S.earlierDone = false; S.earlierBusy = false;   /* 缓存渲染后仍要允许往上翻 */
     cache.rows.forEach(function(m){ addMsg(m, false, false); });
     if(!cache.rows.length){
       msgsBox.appendChild(el('div', 'time', '还没有消息，说句话打破沉默吧 ✧'));
@@ -6100,6 +6149,83 @@ function refPayload(text, reply){
       paintReactRow(wrap, m);
     }
     return wrap;
+  }
+
+  /* ---------- 向上翻页（P11） ----------
+     两个坑必须绕开：
+     ① addMsg 内部是 appendChild，还顺手改写 S.lastShownAt（给实时消息判断要不要插时间条）。
+        翻页插的是历史消息，时间比 lastShownAt 早，如果不拦截，会把 lastShownAt 拽回过去，
+        下一条实时消息就会被错插一个时间分割条。所以每条渲染前临时把 lastShownAt 顶到未来，
+        渲染完再原样还回去。
+     ② 不能用 innerHTML 重建列表。节点上挂着 _msg 引用、长按菜单、语音播放态，
+        重建一次全丢，滚动位置也会归零。只能逐个 insertBefore。 */
+
+  /* DOM 里已渲染的最早一条消息 id。不另存 S.firstId ——
+     进会话有三条渲染路径（首屏/缓存/存档补头），各存一份必然有一处忘了同步，
+     直接问 DOM 最稳。时间条 .time 没有 data-id，天然被排除。 */
+  function earliestRenderedId(){
+    if(!msgsBox) return 0;
+    var first = msgsBox.querySelector('.msg[data-id]');
+    return first ? Number(first.dataset.id) : 0;
+  }
+
+  /* 把一批更早的消息插到列表最前面，并保持视觉位置不动。 */
+  function prependMsgs(list){
+    if(!list || !list.length) return 0;
+    var body = document.querySelector('[data-screen="chatdetail"] .body');
+    var anchor = msgsBox.firstChild;
+    var prevH = body ? body.scrollHeight : 0;
+    var prevTop = body ? body.scrollTop : 0;
+    var savedShownAt = S.lastShownAt;
+    var FUTURE = Date.now() + 365 * 24 * 3600 * 1000;   /* 远到任何历史消息都比它早 */
+
+    var added = 0;
+    list.forEach(function(m){
+      S.lastShownAt = FUTURE;            /* 每条都重设：addMsg 会把上一轮的值改掉 */
+      var n = addMsg(m, false, false);
+      if(!n) return;
+      /* addMsg 已经 append 到尾部了，这里搬到 anchor 之前。
+         按升序遍历 + 永远插在同一个 anchor 前 → 顺序自然正确。 */
+      if(anchor && anchor.parentNode === msgsBox) msgsBox.insertBefore(n, anchor);
+      added++;
+    });
+    S.lastShownAt = savedShownAt;
+
+    /* 跨天时补一条日期锚点：一口气插 50 条，中间没有分割条会分不清是哪天的。
+       只判「跨天」而不是按 5 分钟切 —— 历史消息间隔本来就大，逐条切会满屏时间条。 */
+    if(added && list.length){
+      var headEl = msgsBox.querySelector('.msg[data-id]');
+      var nextEl = headEl && headEl.nextElementSibling;
+      while(nextEl && !nextEl.classList.contains('msg')) nextEl = nextEl.nextElementSibling;
+      var t1 = list[0].created_at && new Date(list[0].created_at);
+      var t2 = nextEl && nextEl.dataset.at && new Date(nextEl.dataset.at);
+      if(t1 && t2 && !isNaN(t1) && !isNaN(t2) && t1.toDateString() !== t2.toDateString()){
+        var bar = el('div', 'time', fmtSplitTime(list[0].created_at));
+        msgsBox.insertBefore(bar, headEl);
+      }
+    }
+
+    /* 滚动位置补偿：插了多少高度就往下推多少，用户看着的那条留在原地。
+       图片是延迟填充的（data-k → src），加载后高度还会长，所以下面对图片再补一次校正。 */
+    if(body){
+      var grew = body.scrollHeight - prevH;
+      body.scrollTop = prevTop + grew;
+      /* 历史里的图片加载完会再把高度顶高，这时上面算出的偏移就偏小了 —— 补正。
+         只在本批消息里的 img 上挂一次性回调，别动全表的，否则列表越长越卡。 */
+      var imgs = msgsBox.querySelectorAll('.msg[data-id] img');
+      var watched = 0;
+      Array.prototype.forEach.call(imgs, function(img){
+        if(watched >= 40) return;             /* 一批最多盯 40 张，防止极端图片墙拖慢 */
+        if(img.complete && img.naturalHeight) return;
+        watched++;
+        img.addEventListener('load', function(){
+          if(document.querySelector('[data-screen="chatdetail"] .body') !== body) return;
+          body.scrollTop = body.scrollTop + (img.offsetHeight || 0);
+        }, { once: true });
+      });
+    }
+    if(window.__fillImg) window.__fillImg();
+    return added;
   }
 
   /* ---------- FR-1104 引用块 ---------- */
@@ -9637,6 +9763,8 @@ function closeMomentVideo(){
     stashDraft(); /* 上一会话的草稿先落袋 */
     S.cur = c;
     S.lastId = 0; S.ids = {}; S.lastAt = null; S.lastShownAt = 0;
+    /* 翻页标记按会话重置：不清的话，上个会话翻到底了，新会话一进去就不能往上翻了 */
+    S.earlierDone = false; S.earlierBusy = false;
     S.reply = null; paintReply(); /* FR-1104：引用不跨会话残留 */
     /* 回填本会话草稿；发出去过的内容不该再回来 */
     if(inp){
@@ -10559,6 +10687,40 @@ function closeMomentVideo(){
     });
     body.addEventListener('touchcancel', function(){
       paintPull(0, '', false, '#mpullHint'); reset();
+    });
+  }
+
+  /* ---------------- 向上翻页：滚到顶自动拉更早（P11） ----------------
+     会话超过 80 条后，老消息原先只能靠本机存档，换设备或清缓存就永久看不到。
+     这里挂在聊天页滚动容器上，接近顶部就续一页。
+     阈值取 80px 而不是 0：等真滚到 0 才开始拉，用户会先看到一次见底的停顿。 */
+  function bindLoadEarlier(){
+    var body = document.querySelector('[data-screen="chatdetail"] .body');
+    if(!body || body._earlierBound) return;
+    body._earlierBound = true;
+    body.addEventListener('scroll', function(){
+      if(!S.cur || S.earlierBusy || S.earlierDone) return;
+      if(body.scrollTop > 80) return;
+      loadEarlier();
+    }, { passive: true });
+  }
+
+  function loadEarlier(){
+    if(!S.cur || S.earlierBusy || S.earlierDone) return;
+    if(!earliestRenderedId()){ S.earlierDone = true; return; }
+    var cid = S.cur.id;
+    S.earlierBusy = true;
+    fetchEarlierMessages(50).then(function(rows){
+      if(!S.cur || S.cur.id !== cid) return;      /* 翻页途中换了会话，整批丢弃 */
+      if(!rows.length){ S.earlierDone = true; toast('没有更早的消息了'); return; }
+      prependMsgs(rows);
+      /* 不足一页就是到底了，省掉下一次必然为空的请求 */
+      if(rows.length < 50) S.earlierDone = true;
+    }).catch(function(e){
+      /* 400/404 多半是列不存在（迁移没跑）。别反复重试，直接收口。 */
+      if(e && (e.status === 400 || e.status === 404)) S.earlierDone = true;
+    }).then(function(){
+      S.earlierBusy = false;
     });
   }
 
@@ -13262,6 +13424,7 @@ function closeMomentVideo(){
     loadReacts(); /* FR-1109 气泡回应（本地演示态） */
     bindPullRefresh(); /* FR-1112 下拉刷新 */
     bindPullMoments(); /* FR-1121 朋友圈下拉刷新 */
+    bindLoadEarlier(); /* P11 聊天记录向上翻页 */
     applyFont();
     applyChatBg();
     applyDiscover();
@@ -13355,7 +13518,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.22:45';
+    var BUILD='1031.03:24';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
