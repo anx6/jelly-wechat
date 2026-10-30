@@ -925,12 +925,59 @@
     text-shadow:-3px 0 0 #0d0b12,3px 0 0 #0d0b12,0 -3px 0 #0d0b12,0 3px 0 #0d0b12,
                  -3px -3px 0 #0d0b12,3px 3px 0 #0d0b12,-3px 3px 0 #0d0b12,3px -3px 0 #0d0b12,
                  6px 7px 0 #ff2e8877;}
+
+  /* ==================== P6-3 ==================== */
+  /* FR-1104 引用块（气泡内） */
+  .refq{font-size:11.5px;line-height:1.5;background:var(--card2);border-left:3px solid var(--pink);
+        border-radius:6px;padding:4px 8px;margin-bottom:5px;max-width:230px;cursor:pointer;
+        overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .refq .refn{color:var(--pink);font-weight:700;}
+  .refq .reft{color:var(--dim);}
+  .msg.refflash .bubble{animation:refflash 1.2s ease;}
+  @keyframes refflash{0%,60%{box-shadow:0 0 0 3px var(--pink);}100%{box-shadow:0 0 0 0 transparent;}}
+  /* FR-1104 引用条（输入栏上方） */
+  .quotebar{position:absolute;left:8px;right:8px;bottom:calc(100% - 2px);z-index:25;
+            display:flex;align-items:center;gap:6px;padding:6px 10px;margin-bottom:0;
+            background:var(--card2);border:1px solid var(--line-soft);border-radius:10px;
+            font-size:12px;color:var(--txt2);box-shadow:0 4px 14px rgba(26,26,46,.12);}
+  .quotebar .qico{color:var(--pink);font-weight:700;}
+  .quotebar .qmid{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .quotebar .qmid b{color:var(--pink);font-weight:700;}
+  .quotebar .qx{color:var(--dim);padding:2px 6px;cursor:pointer;flex:none;}
+  /* FR-1109 表情回应 */
+  .reactpop{position:absolute;bottom:100%;left:14px;z-index:30;display:flex;gap:2px;
+            background:var(--card);border:1px solid var(--line-soft);border-radius:999px;
+            padding:4px 8px;box-shadow:0 6px 18px rgba(26,26,46,.18);margin-bottom:4px;}
+  .reactpop span{font-size:22px;line-height:1;padding:2px 4px;cursor:pointer;transition:transform .12s;}
+  .reactpop span:hover{transform:scale(1.25);}
+  .reactrow{display:flex;gap:3px;margin-top:3px;}
+  .reactrow .remo{font-size:12px;line-height:1;background:var(--card2);border:1px solid var(--line-soft);
+                  border-radius:999px;padding:2px 6px;cursor:pointer;}
+  /* FR-1120 双击头像点赞脉冲 */
+  .post .a.pulsing{animation:avapulse .45s ease;}
+  @keyframes avapulse{0%{transform:scale(1);}40%{transform:scale(1.28);}100%{transform:scale(1);}}
+  /* FR-1122 视频格 */
+  .pgrid .vthumb{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit;}
+  .pgrid{position:relative;}
+  .pgrid .vdur{position:absolute;right:6px;bottom:6px;z-index:2;font-size:11px;font-weight:700;
+               color:#fff;background:rgba(0,0,0,.55);border-radius:999px;padding:2px 8px;}
+  .mpcell{position:relative;}
+  .mpcell .vthumb{width:100%;height:100%;object-fit:cover;display:block;border-radius:10px;}
+  .mpcell .vdur{position:absolute;right:6px;bottom:6px;z-index:2;font-size:11px;font-weight:700;
+                color:#fff;background:rgba(0,0,0,.55);border-radius:999px;padding:2px 8px;}
+  /* 全屏视频播放器 */
+  .vidplayer{position:fixed;inset:0;z-index:200;background:rgba(10,8,16,.96);display:none;
+             align-items:center;justify-content:center;}
+  .vidplayer.on{display:flex;}
+  .vidplayer video{width:100%;max-height:100%;}
+  .vidplayer .vx{position:absolute;top:calc(env(safe-area-inset-top, 0px) + 14px);right:16px;
+                 font-size:22px;color:#fff;cursor:pointer;padding:6px;}
 </style>
 <!-- 主题和字号要在首帧之前定下来，否则深色用户会先看到一屏亮白、大字号用户会先看到一屏小字（FOUC） -->
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.09:04';
+window.__BUILD = '1030.10:14';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -968,7 +1015,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.09:04</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.10:14</div>
         </div>
       </div>
     </section>
@@ -1043,7 +1090,7 @@ try{
     <!-- ================= 聊天详情 ================= -->
     <section class="screen" data-screen="chatdetail">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl" id="chatTitle">聊天</div>
         <div class="ico-btn" id="btnConvSearch" role="button" aria-label="搜索聊天记录">🔍</div>
         <div class="ico-btn" id="btnChatCode">⌗</div>
@@ -1074,13 +1121,15 @@ try{
         <div class="msgs" id="msgs"></div>
       </div>
       <div class="inputbar">
+        <!-- FR-1104 引用条：absolute 挂在 inputbar 内（relative 基准），浮在输入栏上方不挤压输入行 -->
+        <div class="quotebar" id="quoteBar" style="display:none"></div>
         <div class="ibtn" id="btnAt" role="button" aria-label="提到某人" style="display:none">@</div>
         <div class="ibtn" id="btnMore" role="button" aria-label="更多功能">＋</div>
         <div class="ibtn" id="btnPickImg" role="button" aria-label="发送图片">🖼</div>
         <div class="ibtn" id="btnVoice" role="button" aria-label="按住说话">🎤</div>
         <textarea class="field" id="msgInput" rows="1" maxlength="2000" placeholder="说点什么…"></textarea>
         <div class="ibtn" id="btnEmoji" role="button" aria-label="表情">😀</div>
-        <button class="send" id="sendBtn" type="button" disabled>发送</button>
+        <button class="send" id="sendBtn" type="button" aria-label="发送消息" disabled>发送</button>
         <input type="file" id="filePick" accept="image/*" multiple style="display:none">
         <input type="file" id="filePickVideo" accept="video/*" style="display:none">
         <input type="file" id="filePickFile" accept="*/*" style="display:none">
@@ -1153,7 +1202,7 @@ try{
     <!-- ================= 我的群聊（P2-5） ================= -->
     <section class="screen" data-screen="grouplist">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">群聊</div>
         <div class="ico-btn" id="btnNewGroup">➕</div>
       </div>
@@ -1170,7 +1219,7 @@ try{
     <!-- ================= 建群：选联系人 ================= -->
     <section class="screen" data-screen="groupcreate">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">选择联系人</div>
         <div class="ico-btn" id="btnCreateGroup">✓</div>
       </div>
@@ -1191,7 +1240,7 @@ try{
     <!-- ================= 群信息 ================= -->
     <section class="screen" data-screen="groupinfo">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">群聊信息</div>
         <div class="ico-btn" id="btnGroupAdd">➕</div>
       </div>
@@ -1216,7 +1265,7 @@ try{
     <!-- ================= 入群申请（FR-409 群主审核） ================= -->
     <section class="screen" data-screen="joinreq">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">入群申请</div>
         <div style="width:34px"></div>
       </div>
@@ -1230,7 +1279,7 @@ try{
 
     <!-- ================= 新的朋友（好友申请） ================= -->
     <section class="screen" data-screen="newfriends">      <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">新的朋友</div>
         <div class="ico-btn" id="btnAddFriend2">➕</div>
       </div>
@@ -1249,7 +1298,7 @@ try{
     <!-- ================= 添加好友 ================= -->
     <section class="screen" data-screen="addfriend">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">添加朋友</div>
         <div class="ico-btn" style="visibility:hidden">.</div>
       </div>
@@ -1273,7 +1322,7 @@ try{
     <!-- ================= 编辑资料 ================= -->
     <section class="screen" data-screen="profile">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">个人资料</div>
         <div class="ico-btn" id="btnSaveProfile">✓</div>
       </div>
@@ -1315,7 +1364,7 @@ try{
     <!-- ================= 搜一搜（FR-702） ================= -->
     <section class="screen" data-screen="search">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">搜一搜</div>
         <div class="ico-btn" id="btnSearchClear" role="button">✕</div>
       </div>
@@ -1336,7 +1385,7 @@ try{
     <!-- ================= 扫一扫（FR-701） ================= -->
     <section class="screen" data-screen="scan">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">扫一扫</div>
         <div class="ico-btn" id="btnScanTorch" role="button" aria-label="手电筒">💡</div>
       </div>
@@ -1360,7 +1409,7 @@ try{
          结构完全一样，用一个 section 按 kind 渲染比开五个屏幕更好维护。 -->
     <section class="screen" data-screen="demo">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl" id="demoTitle">演示</div>
         <div class="ico-btn" id="btnDemoAct" role="button" style="display:none">…</div>
       </div>
@@ -1370,11 +1419,13 @@ try{
     <!-- ================= 朋友圈 ================= -->
     <section class="screen" data-screen="moments">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl" id="momentTitle">朋友圈</div>
-        <div class="ico-btn" id="btnMomentPost" role="button">📷</div>
+        <div class="ico-btn" id="btnMomentPost" role="button" aria-label="发表动态">📷</div>
       </div>
       <div class="body" id="momentBody" style="padding:0;">
+        <!-- FR-1121 朋友圈下拉刷新指示条（复用 pullhint 样式），置于滚动区顶部 -->
+        <div class="pullhint" id="mpullHint"><span class="phIco">↻</span><span class="phTx">下拉刷新</span></div>
         <div class="cover" id="momentCover">
           <span class="nick" id="momentCoverNick">我的萌将</span>
           <img class="me" id="momentCoverAva" data-k="ava_hero" alt="">
@@ -1412,7 +1463,7 @@ try{
           <div class="cell" id="mpLoc"><div class="chip" style="background:var(--lime)">📍</div><div class="nm">所在位置</div><div class="mv" id="mpLocVal">不显示</div><div class="chev">›</div></div>
         </div>
       </div>
-      <input type="file" id="mpFile" accept="image/*" multiple style="display:none;">
+      <input type="file" id="mpFile" accept="image/*,video/*" multiple style="display:none;">
     </section>
 
     <!-- ================= 选择可见联系人 ================= -->
@@ -1428,7 +1479,7 @@ try{
     <!-- ================= 动态详情（P3-2） ================= -->
     <section class="screen" data-screen="momentdetail">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">详情</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1438,7 +1489,7 @@ try{
     <!-- ================= 选择相册封面 ================= -->
     <section class="screen" data-screen="coverpick">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">选择封面</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1455,7 +1506,7 @@ try{
     <!-- ================= 设置（P3-2 / P3-4） ================= -->
     <section class="screen" data-screen="settings">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">设置</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1500,14 +1551,14 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.09:04</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.10:14</div>
       </div>
     </section>
 
     <!-- ================= 账号与安全（FR-107） ================= -->
     <section class="screen" data-screen="security">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">账号与安全</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1530,7 +1581,7 @@ try{
          所以顶部两格的右值分别是「X 个会话 / 已导入 X 个」而不是「已备份」。 -->
     <section class="screen" data-screen="migrate">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">聊天记录迁移</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1563,7 +1614,7 @@ try{
     <!-- ================= 黑名单（FR-806） ================= -->
     <section class="screen" data-screen="blocklist">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">黑名单</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1573,7 +1624,7 @@ try{
     <!-- ================= 通知设置（P3-5 / FR-807） ================= -->
     <section class="screen" data-screen="notify">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">通知</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1595,7 +1646,7 @@ try{
     <!-- ================= 存储空间（P3-5 / FR-809） ================= -->
     <section class="screen" data-screen="storage">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">存储空间</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1618,7 +1669,7 @@ try{
     <!-- ================= 发现页管理（P3-5 / FR-708） ================= -->
     <section class="screen" data-screen="discovermgr">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">发现页管理</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1631,7 +1682,7 @@ try{
     <!-- ================= 关于（P3-5 / FR-811） ================= -->
     <section class="screen" data-screen="about">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">关于</div>
         <div style="width:38px;flex-shrink:0;"></div>
       </div>
@@ -1652,7 +1703,7 @@ try{
     <!-- ================= 二维码名片 / 群二维码（FR-106 / FR-409） ================= -->
     <section class="screen" data-screen="qrcode">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl" id="qrTitle">我的二维码</div>
         <div class="ico-btn" id="btnQrSave" role="button" aria-label="保存到相册">⤓</div>
       </div>
@@ -1671,7 +1722,7 @@ try{
     <!-- ================= 收藏（FR-803） ================= -->
     <section class="screen" data-screen="favorites">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">收藏</div>
       </div>
       <div class="body" id="favBody"></div>
@@ -1680,7 +1731,7 @@ try{
     <!-- ================= 表情管理（FR-804） ================= -->
     <section class="screen" data-screen="emoji">
       <div class="head">
-        <div class="back" data-back>‹</div>
+        <div class="back" data-back role="button" aria-label="返回">‹</div>
         <div class="cttl">表情</div>
         <div class="ico-btn" id="btnEmoAll" role="button" aria-label="恢复全部">↺</div>
       </div>
@@ -1716,7 +1767,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.09:04</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.10:14</div>
       </div>
     </section>
 
@@ -1724,10 +1775,10 @@ try{
 
   <!-- tabbar -->
   <div class="tabbar" id="tabbar" style="display:none">
-    <div class="tab on" data-tab="chat"><div class="stage"><div class="p"><img class="sit" data-k="r_ico_messenger" alt=""><img class="stand" data-k="s_ico_messenger" alt=""></div><span class="spark">✦</span></div><div class="lb">微信</div></div>
-    <div class="tab" data-tab="contacts"><div class="stage"><div class="p"><img class="sit" data-k="r_ico_contacts" alt=""><img class="stand" data-k="s_ico_contacts" alt=""></div><span class="spark">✦</span></div><div class="lb">通讯录</div></div>
-    <div class="tab" data-tab="discover"><div class="stage"><div class="p"><img class="sit" data-k="r_ico_explore" alt=""><img class="stand" data-k="s_ico_explore" alt=""></div><span class="spark">✦</span></div><div class="lb">发现</div></div>
-    <div class="tab" data-tab="me"><div class="stage"><div class="p"><img class="sit" data-k="r_ico_hero" alt=""><img class="stand" data-k="s_ico_hero" alt=""></div><span class="spark">✦</span></div><div class="lb">我</div></div>
+    <div class="tab on" data-tab="chat" role="tab" aria-label="微信"><div class="stage"><div class="p"><img class="sit" data-k="r_ico_messenger" alt=""><img class="stand" data-k="s_ico_messenger" alt=""></div><span class="spark">✦</span></div><div class="lb">微信</div></div>
+    <div class="tab" data-tab="contacts" role="tab" aria-label="通讯录"><div class="stage"><div class="p"><img class="sit" data-k="r_ico_contacts" alt=""><img class="stand" data-k="s_ico_contacts" alt=""></div><span class="spark">✦</span></div><div class="lb">通讯录</div></div>
+    <div class="tab" data-tab="discover" role="tab" aria-label="发现"><div class="stage"><div class="p"><img class="sit" data-k="r_ico_explore" alt=""><img class="stand" data-k="s_ico_explore" alt=""></div><span class="spark">✦</span></div><div class="lb">发现</div></div>
+    <div class="tab" data-tab="me" role="tab" aria-label="我"><div class="stage"><div class="p"><img class="sit" data-k="r_ico_hero" alt=""><img class="stand" data-k="s_ico_hero" alt=""></div><span class="spark">✦</span></div><div class="lb">我</div></div>
   </div>
 
   <!-- 长按菜单 -->
@@ -1949,6 +2000,8 @@ try{
     histDepth: 0,         /* 我们自己压进浏览器历史栈的层数（FR-1101 返回手势） */
     histPopping: false,   /* popstate 守卫：应用内返回主动 history.back() 时，popstate 到达后不再触发第二次 back() */
     reedit: null,         /* FR-1105 最近一次撤回的自己的文字消息 { cid, text, at } */
+    reply: null,          /* FR-1104 当前引用回复目标 { mid, name, x } */
+    react: {},            /* FR-1109 气泡表情回应（本地演示态）"<cid>:<mid>" -> { emo: ts } */
     voiceSeen: {},        /* FR-1106 已听语音 cid -> { msgId: ts }，本地记录（未听红点用） */
     noDraft: false,       /* 服务端 draft 列不可用时锁死，不再反复 PATCH（FR-1107） */
     cur: null,            /* 当前会话 */
@@ -2041,6 +2094,26 @@ try{
 
   /* ---------------- 已听语音（FR-1106，纯前端）----------------
      只存「我听过哪些语音」，用于未听红点。key 是 cid，内层 key 是消息 id。 */
+  /* FR-1109 表情回应：无后端表，先做本地演示态（只记录我自己的回应）。
+     key 用 "<cid>:<mid>"，会话切换互不串。 */
+  function loadReacts(){
+    S.react = loadJSON('jw_msg_react', {}) || {};
+  }
+  function reactsOf(cid, mid){
+    var k = String(cid) + ':' + String(mid);
+    var m = S.react && S.react[k];
+    if(!m) return [];
+    return Object.keys(m).sort(function(a, b){ return m[a] - m[b]; });
+  }
+  function toggleReact(cid, mid, emo){
+    var k = String(cid) + ':' + String(mid);
+    if(!S.react) S.react = {};
+    var m = S.react[k] || (S.react[k] = {});
+    if(m[emo]){ delete m[emo]; }else{ m[emo] = Date.now(); }
+    try{ localStorage.setItem('jw_msg_react', JSON.stringify(S.react)); }catch(e){}
+    return !!m[emo];
+  }
+
   function loadVoiceSeen(){
     S.voiceSeen = loadJSON('jw_voice_seen', {}) || {};
   }
@@ -2907,18 +2980,20 @@ try{
     });
   }
 
-  function sendText(text){
+  function sendText(text, reply){
     if(!S.cur) return;
     var cid = S.cur.id;
     var key = uuid();
+    /* FR-1104 引用回复：带引用时 content 是 {"ref":{...},"x":正文} 的 JSON 串 */
+    var content = refPayload(text, reply);
     var mnt = extractMentions(text, gMembers);
-    var node = addMsg({ sender_id: S.me.id, content: text, created_at: new Date().toISOString(),
+    var node = addMsg({ sender_id: S.me.id, content: content, created_at: new Date().toISOString(),
                         client_msg_id: key, mentions: mnt }, true, true);
     if(!node) return;
-    S.pending[key] = { text: text, cid: cid, mentions: mnt };
+    S.pending[key] = { text: content, cid: cid, mentions: mnt };
     delete S.ids['c:' + key];
     scrollBottom();
-    deliver(key, node, text, cid);
+    deliver(key, node, content, cid);
   }
 
   /* ---------------- 已读（FR-202）---------------- */
@@ -3857,7 +3932,7 @@ try{
     if(myId == null) myId = (S.sess && S.sess.user) ? S.sess.user.id : '';
     if(c.draft) return '[草稿] ' + c.draft;
     if(!c.last) return '开始聊天吧 ✧';
-    var body = c.last.content || '';
+    var body = refTextOf(c.last.content); /* FR-1104：引用消息预览取正文，不显示 JSON */
     if(c.last.type === 'image') body = '[图片]';
     else if(c.last.type === 'voice') body = '[语音]';
     else if(c.last.type === 'file') body = '[文件]';
@@ -4887,6 +4962,52 @@ function voiceLeftText(dur, played){
   return '剩 ' + left + '″';
 }
 
+/* ==================== P6-3（纯函数，显式传参） ==================== */
+
+/* FR-1104 引用回复：回复消息的 content 是 JSON 字符串
+   {"ref":{"i":<原消息id>,"n":<发送者昵称>,"x":<摘要≤60>},"x":<回复正文>}。
+   普通文本保持原样（大部分消息不走这里），解析失败也按普通文本处理。 */
+function parseRef(content){
+  var s = String(content == null ? '' : content);
+  if(s.charAt(0) !== '{') return null;
+  try{
+    var o = JSON.parse(s);
+    if(o && o.ref && typeof o.ref.i !== 'undefined' && typeof o.x === 'string') return o;
+  }catch(e){}
+  return null;
+}
+
+/* 引用消息的「可读文本」：有引用取正文，普通文本原样返回。
+   复制、列表预览、emojiCount 都走这个，避免把 JSON 糊给用户。 */
+function refTextOf(content){
+  var o = parseRef(content);
+  return o ? o.x : String(content == null ? '' : content);
+}
+
+/* 被引消息的摘要（≤60 字）：文字取正文，媒体类型给固定描述 */
+function excerptOfMsg(m){
+  if(!m) return '';
+  var t = m.msg_type || 'text';
+  var body = '';
+  if(t === 'image') body = '[图片]';
+  else if(t === 'voice') body = '[语音]';
+  else if(t === 'video') body = '[视频]';
+  else if(t === 'file') body = '[文件]';
+  else if(t === 'location') body = '[位置]';
+  else body = refTextOf(m.content);
+  body = String(body).replace(/\s+/g, ' ').trim();
+  return body.length > 60 ? body.slice(0, 60) + '…' : body;
+}
+
+/* 组装引用回复的 content：没引用就发纯文本，绝不为普通消息包 JSON */
+function refPayload(text, reply){
+  if(!reply || !reply.mid) return text;
+  return JSON.stringify({
+    ref: { i: reply.mid, n: String(reply.name || ''), x: String(reply.x || '') },
+    x: text
+  });
+}
+
 /* =====================================================================
    果冻微信 · VIEW
    视图层：所有 render* / paint* / 弹层 / DOM 复用。
@@ -5198,13 +5319,40 @@ function voiceLeftText(dur, played){
   }
 
   /* FR-1112 下拉刷新指示条：h=0 收起；h>0 露出文案；ing=正在刷新（转圈）。
-     宽度跟内容列走，颜色全走语义变量，深色自动适配。 */
-  function paintPull(h, txt, ing){
-    var hint = $('#pullHint'); if(!hint) return;
+     宽度跟内容列走，颜色全走语义变量，深色自动适配。
+     P6-3 起支持 hintId 参数（朋友圈 #mpullHint 复用同一套样式）。 */
+  function paintPull(h, txt, ing, hintId){
+    var hint = $(hintId || '#pullHint'); if(!hint) return;
     hint.style.height = Math.round(h) + 'px';
     var tx = hint.querySelector('.phTx');
     if(tx && txt) tx.textContent = txt;
     hint.classList.toggle('ing', !!ing);
+  }
+
+  /* FR-1104 引用条：输入栏上方显示被引摘要，点 ✕ 取消。发完/离开会话自动收。 */
+  function paintReply(){
+    var bar = $('#quoteBar'); if(!bar) return;
+    var r = S.reply;
+    if(!r){
+      bar.style.display = 'none';
+      bar.innerHTML = '';
+      return;
+    }
+    bar.innerHTML = '';
+    bar.appendChild(el('span', 'qico', '↩'));
+    var mid = el('span', 'qmid');
+    mid.appendChild(el('b', null, r.name || '对方'));
+    mid.appendChild(document.createTextNode('：' + (r.x || '')));
+    bar.appendChild(mid);
+    var x = el('span', 'qx', '✕');
+    x.setAttribute('role', 'button');
+    x.setAttribute('aria-label', '取消引用');
+    x.addEventListener('click', function(){
+      S.reply = null;
+      paintReply();
+    });
+    bar.appendChild(x);
+    bar.style.display = 'flex';
   }
 
   function updateTabDot(){
@@ -5573,10 +5721,13 @@ function voiceLeftText(dur, played){
       bub = lo ? buildLocation(lo) : el('div', 'bubble', '[位置]');
     } else {
       bub = el('div', 'bubble');
+      /* FR-1104 引用块：引用回复的 content 是 JSON，先画摘要条再画正文 */
+      var rf = m.deleted_at ? null : parseRef(m.content);
+      if(rf) bub.appendChild(buildRef(rf.ref));
       /* @ 提及要高亮，但不能用 innerHTML 拼用户内容 —— 走文本节点分段 */
-      renderRichText(bub, m.content, m.mentions);
+      renderRichText(bub, rf ? rf.x : m.content, m.mentions);
       /* 大表情：整条只有 1–3 个 emoji 时去掉气泡壳、放大到 38px（B-03） */
-      var ec = (!m.msg_type || m.msg_type === 'text') ? emojiCount(m.content) : 0;
+      var ec = (!m.msg_type || m.msg_type === 'text') ? emojiCount(refTextOf(m.content)) : 0;
       if(ec >= 1 && ec <= 3) bub.classList.add('bigemoji');
     }
     /* 群聊里别人的头像要用「他自己」的，不能一律套会话 peer_avatar */
@@ -5617,7 +5768,94 @@ function voiceLeftText(dur, played){
     }
     /* 长按菜单（FR-310 复制）*/
     bindLongPress(bub, function(){ msgMenu(wrap, m); });
+    /* FR-1109 双击气泡快捷回应（本地演示态） */
+    if(m.id && !m.deleted_at && !pending){
+      bindReact(bub, wrap, m);
+      paintReactRow(wrap, m);
+    }
     return wrap;
+  }
+
+  /* ---------- FR-1104 引用块 ---------- */
+  /* ref: { i: 原消息id, n: 昵称, x: 摘要 }。点摘要跳原消息；原消息已撤回则摘要显示撤回提示。 */
+  function buildRef(r){
+    var d = el('div', 'refq');
+    var recalled = false;
+    if(r.i){
+      var tgt = $('#msgs .msg[data-id="' + r.i + '"]');
+      var cm = tgt && tgt._msg;
+      if(tgt && cm && cm.deleted_at) recalled = true;
+      if(!tgt && S.msgCache && S.cur){
+        var rows = (S.msgCache[S.cur.id] || {}).rows || [];
+        for(var i = 0; i < rows.length; i++){
+          if(String(rows[i].id) === String(r.i)){ if(rows[i].deleted_at) recalled = true; break; }
+        }
+      }
+    }
+    d.appendChild(el('span', 'refn', (r.n || '') + (r.n ? '：' : '')));
+    d.appendChild(el('span', 'reft', recalled ? '原消息已撤回' : (r.x || '')));
+    d.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      if(recalled){ toast('原消息已撤回'); return; }
+      var tgt2 = $('#msgs .msg[data-id="' + r.i + '"]');
+      if(!tgt2){ toast('原消息不在当前屏幕'); return; }
+      if(tgt2.scrollIntoView) tgt2.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      tgt2.classList.add('refflash');
+      setTimeout(function(){ tgt2.classList.remove('refflash'); }, 1200);
+    });
+    return d;
+  }
+
+  /* ---------- FR-1109 表情回应（本地演示态） ---------- */
+  var REACT_EMOJIS = ['❤️', '😂', '👍', '😮', '😢', '🎉'];
+
+  function bindReact(bub, wrap, m){
+    bub.addEventListener('dblclick', function(){
+      closeReactPop();
+      var pop = el('div', 'reactpop');
+      REACT_EMOJIS.forEach(function(emo){
+        var s = el('span', null, emo);
+        s.setAttribute('role', 'button');
+        s.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          var on = toggleReact(S.cur ? S.cur.id : '', m.id, emo);
+          closeReactPop();
+          paintReactRow(wrap, m);
+          if(on) haptic(10);
+        });
+        pop.appendChild(s);
+      });
+      wrap.appendChild(pop);
+      wrap._reactPop = pop;
+      setTimeout(function(){
+        document.addEventListener('click', closeReactPop, { once: true });
+      }, 0);
+    });
+  }
+
+  function closeReactPop(){
+    var pops = $$('.reactpop');
+    pops.forEach(function(p){ if(p.parentNode) p.parentNode.removeChild(p); });
+  }
+
+  function paintReactRow(wrap, m){
+    if(!wrap) return;
+    var old = wrap.querySelector('.reactrow');
+    if(old) old.remove();
+    var list = reactsOf(S.cur ? S.cur.id : '', m.id);
+    if(!list.length) return;
+    var row = el('div', 'reactrow');
+    list.forEach(function(emo){
+      var s = el('span', 'remo' , emo);
+      s.title = '点按取消回应';
+      s.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        toggleReact(S.cur ? S.cur.id : '', m.id, emo);
+        paintReactRow(wrap, m);
+      });
+      row.appendChild(s);
+    });
+    wrap.appendChild(row);
   }
 
   function scrollBottom(){
@@ -5875,26 +6113,46 @@ function voiceLeftText(dur, played){
     if(!sh) return;
     sh.innerHTML = '';
     var card = el('div', 'scard');
+    card.setAttribute('role', 'menu');
+    var firstAction = null;
     items.forEach(function(it){
       /* ghost 项是纯说明文字（外链地址、确认标题），不是按钮：不响应点击、不关菜单 */
       var d = el('div', 'sitem' + (it.danger ? ' danger' : '') + (it.ghost ? ' ghost' : ''), it.label);
       if(!it.ghost){
+        d.setAttribute('role', 'menuitem');
+        d.setAttribute('tabindex', '0');
         d.addEventListener('click', function(){ closeSheet(); if(it.fn) setTimeout(it.fn, 0); });
+        d.addEventListener('keydown', function(ev){
+          if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); closeSheet(); if(it.fn) setTimeout(it.fn, 0); }
+        });
+        if(!firstAction) firstAction = d;
       }
       card.appendChild(d);
     });
     sh.appendChild(card);
     var cancel = el('div', 'scancel', '取消');
+    cancel.setAttribute('role', 'button');
     cancel.addEventListener('click', closeSheet);
     sh.appendChild(cancel);
     if(mk) mk.classList.add('on');
     sh.classList.add('on');
+    /* FR-1118 焦点管理：记住触发元素，焦点移入首个操作项；关闭/失焦后归还 */
+    try{
+      sheetReturnFocus = document.activeElement;
+      if(firstAction && firstAction.focus) firstAction.focus();
+    }catch(e){}
   }
+
+  var sheetReturnFocus = null;
 
   function closeSheet(){
     var sh = $('#sheet'), mk = $('#mask');
     if(sh) sh.classList.remove('on');
     if(mk) mk.classList.remove('on');
+    try{
+      if(sheetReturnFocus && sheetReturnFocus.focus) sheetReturnFocus.focus();
+    }catch(e){}
+    sheetReturnFocus = null;
   }
 
   /* FR-1113 自绘二次确认：替代 window.confirm，样式与长按菜单同一套 sheet。
@@ -5950,7 +6208,21 @@ function voiceLeftText(dur, played){
         /* FR-304 转文字：录制时生成过转写就展示；没有也给出入口并如实说明原因 */
         items.push({ label: '转文字', fn: function(){ showVoiceText(m); } });
       } else {
-        items.push({ label: '复制', fn: function(){ copyText(m.content); } });
+        items.push({ label: '复制', fn: function(){ copyText(refTextOf(m.content)); } });
+      }
+      /* FR-1104 引用回复：文字/图片/语音/视频/文件都能引 */
+      if(S.cur){
+        items.push({ label: '引用', fn: function(){
+          var nm = '';
+          if(m.sender_id === S.me.id) nm = '我';
+          else{
+            var gm = memberOf(m.sender_id, gMembers);
+            nm = (gm && (gm.remark || gm.nickname)) || (S.cur.ctype === 'group' ? '成员' : (S.cur.peer_nick || '对方'));
+          }
+          S.reply = { mid: m.id, name: nm, x: excerptOfMsg(m) };
+          paintReply();
+          var ip = $('#msgInput'); if(ip) ip.focus();
+        } });
       }
       /* 收藏放在撤回之前：撤回有时限，收藏没有，别让它排在一个会消失的项后面 */
       if(!S.noFav && (m.msg_type === 'text' || m.msg_type === 'image' || m.msg_type === 'voice')){
@@ -6658,6 +6930,16 @@ function voiceLeftText(dur, played){
 
     var img = avaImg(m.avatar);
     img.className = 'a';
+    /* FR-1120 双击头像快速点赞/取消（300ms 内双击由 dblclick 天然区分单击跳详情） */
+    img.addEventListener('dblclick', function(e){
+      e.stopPropagation();
+      img.classList.remove('pulsing');
+      /* 强制重排让动画能连续触发 */
+      void img.offsetWidth;
+      img.classList.add('pulsing');
+      haptic(10);
+      doLikeMoment(m, post);
+    });
     post.appendChild(img);
 
     var pbody = el('div', 'pbody');
@@ -6676,10 +6958,33 @@ function voiceLeftText(dur, played){
       var g = el('div', momentGridClass(m.images.length));
       m.images.forEach(function(u, i){
         var cell = el('div');
-        var im = document.createElement('img');
-        im.src = u; im.alt = ''; im.loading = 'lazy';
-        im.addEventListener('click', function(){ openViewer(m.images, i); });
-        cell.appendChild(im);
+        /* FR-1122 视频动态：images 数组里的 JSON 项 {"url","dur"} 是视频格 */
+        var vd = parseMomentVideo(u);
+        if(vd && vd.url){
+          var v = document.createElement('video');
+          v.src = vd.url;
+          v.muted = true;
+          v.loop = true;
+          v.autoplay = true;
+          v.playsInline = true;
+          v.setAttribute('muted', '');
+          v.setAttribute('autoplay', '');
+          v.setAttribute('loop', '');
+          v.setAttribute('playsinline', '');
+          v.className = 'vthumb';
+          var badge = el('span', 'vdur', (vd.dur ? fmtMomentDur(vd.dur) + ' ' : '') + '▶');
+          cell.appendChild(v);
+          cell.appendChild(badge);
+          v.addEventListener('click', function(ev){
+            ev.stopPropagation();
+            openMomentVideo(vd.url);
+          });
+        }else{
+          var im = document.createElement('img');
+          im.src = u; im.alt = ''; im.loading = 'lazy';
+          im.addEventListener('click', function(){ openViewer(m.images, i); });
+          cell.appendChild(im);
+        }
         g.appendChild(cell);
       });
       pbody.appendChild(g);
@@ -6826,6 +7131,7 @@ function voiceLeftText(dur, played){
     box.innerHTML = '';
     var d = S.mp || {};
     var pics = d.pics || [];
+    var vid = d.vid;
 
     pics.forEach(function(p, i){
       var cell = el('div', 'mpcell filled');
@@ -6842,7 +7148,28 @@ function voiceLeftText(dur, played){
       box.appendChild(cell);
     });
 
-    if(pics.length < PIC_MAX){
+    /* FR-1122 视频格：一条动态最多 1 个视频，占一个格子 */
+    if(vid && vid.url){
+      var vcell = el('div', 'mpcell filled');
+      var v = document.createElement('video');
+      v.src = vid.url;
+      v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
+      v.setAttribute('muted', ''); v.setAttribute('autoplay', '');
+      v.setAttribute('loop', ''); v.setAttribute('playsinline', '');
+      v.className = 'vthumb';
+      vcell.appendChild(v);
+      vcell.appendChild(el('span', 'vdur', (vid.dur ? fmtMomentDur(vid.dur) + ' ' : '') + '▶'));
+      var vdel = el('div', 'del', '✕');
+      vdel.addEventListener('click', function(e){
+        e.stopPropagation();
+        if(S.mp) S.mp.vid = null;
+        renderMpPics();
+      });
+      vcell.appendChild(vdel);
+      box.appendChild(vcell);
+    }
+
+    if(pics.length < PIC_MAX && !vid){
       var add = el('div', 'mpcell', '＋');
       add.setAttribute('role', 'button');
       add.addEventListener('click', function(){ var f = $('#mpFile'); if(f) f.click(); });
@@ -8038,6 +8365,60 @@ function paintTagUI(){
   bar.appendChild(x);
 }
 
+/* ==================== P6-3 朋友圈视频（FR-1122） ==================== */
+
+/* images 数组里的视频项：{"url":"...","dur":12}（JSON 字符串）；图片项是纯 URL */
+function parseMomentVideo(u){
+  var s = String(u == null ? '' : u);
+  if(s.charAt(0) !== '{') return null;
+  try{
+    var o = JSON.parse(s);
+    if(o && typeof o.url === 'string' && /^https?:/.test(o.url)) return o;
+  }catch(e){}
+  return null;
+}
+
+function fmtMomentDur(sec){
+  sec = Math.max(0, Math.round(Number(sec) || 0));
+  return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+}
+
+/* 全屏视频播放器：单例 overlay，有声播放，点任意处/X 关闭 */
+function openMomentVideo(url){
+  var ov = $('#vidPlayer');
+  if(!ov){
+    ov = el('div', 'vidplayer');
+    ov.id = 'vidPlayer';
+    var v = el('video', null);
+    v.controls = true;
+    v.playsInline = true;
+    v.setAttribute('playsinline', '');
+    var x = el('span', 'vx', '✕');
+    x.setAttribute('role', 'button');
+    x.setAttribute('aria-label', '关闭视频');
+    ov.appendChild(v);
+    ov.appendChild(x);
+    document.body.appendChild(ov);
+    ov._v = v;
+    ov.addEventListener('click', function(e){
+      if(e.target === ov || e.target === x) closeMomentVideo();
+    });
+  }
+  ov._v.src = url;
+  ov.classList.add('on');
+  var pr = ov._v.play();
+  if(pr && pr.catch) pr.catch(function(){});
+}
+
+function closeMomentVideo(){
+  var ov = $('#vidPlayer');
+  if(!ov) return;
+  try{ ov._v.pause(); }catch(e){}
+  ov._v.removeAttribute('src');
+  ov._v.load();
+  ov.classList.remove('on');
+}
+
 /* =====================================================================
    果冻微信 · APP
    业务流转 + 事件绑定 + 轮询 + 启动
@@ -8791,6 +9172,7 @@ function paintTagUI(){
     stashDraft(); /* 上一会话的草稿先落袋 */
     S.cur = c;
     S.lastId = 0; S.ids = {}; S.lastAt = null; S.lastShownAt = 0;
+    S.reply = null; paintReply(); /* FR-1104：引用不跨会话残留 */
     /* 回填本会话草稿；发出去过的内容不该再回来 */
     if(inp){
       inp.value = String(c.draft || '');
@@ -9477,6 +9859,7 @@ function paintTagUI(){
       closeConvSearch();   /* FR-903：退出会话时收起会话内搜索栏并清高亮 */
       stopPeerState();     /* FR-315/316：轮询和输入提示一并收掉 */
       applyChatBg();       /* FR-317：恢复全局背景，别把本会话的带到列表 */
+      S.reply = null; paintReply(); /* FR-1104：引用不跨会话残留 */
       setTab(returnTo || 'chat');
     }else if(backTo){
       var b = backTo; backTo = null;
@@ -9606,6 +9989,51 @@ function paintTagUI(){
     });
   }
 
+  /* FR-1121 朋友圈下拉刷新：同 FR-1112 的手感，作用于 #momentBody，
+     松手触发 loadMomentList(true)。指示条复用 pullhint 样式（#mpullHint）。 */
+  function bindPullMoments(){
+    var body = document.querySelector('#momentBody');
+    if(!body || body._pullBound) return;
+    body._pullBound = true;
+    var TH = 70, MAX = 96;
+    var sy = 0, dist = 0, armed = false, busy = false;
+    function reset(){ dist = 0; armed = false; }
+    body.addEventListener('touchstart', function(e){
+      if(!e.touches || !e.touches.length || busy) return;
+      reset();
+      if(body.scrollTop > 0) return;
+      sy = e.touches[0].clientY;
+      armed = true;
+    }, { passive: true });
+    body.addEventListener('touchmove', function(e){
+      if(!armed || !e.touches || !e.touches.length) return;
+      var dy = e.touches[0].clientY - sy;
+      if(dy <= 0){ if(dist){ dist = 0; paintPull(0, '', false, '#mpullHint'); } return; }
+      if(body.scrollTop > 0) return;
+      dist = Math.min(dy * 0.45, MAX);
+      paintPull(dist, dist >= TH ? '松手刷新' : '下拉刷新', false, '#mpullHint');
+      e.preventDefault();
+    }, { passive: false });
+    body.addEventListener('touchend', function(){
+      if(!armed) return;
+      if(dist >= TH && !busy){
+        busy = true;
+        paintPull(52, '正在刷新…', true, '#mpullHint');
+        loadMomentList(true).catch(function(){}).then(function(){
+          busy = false;
+          paintPull(0, '', false, '#mpullHint');
+          toast('已刷新');
+        });
+      }else{
+        paintPull(0, '', false, '#mpullHint');
+      }
+      reset();
+    });
+    body.addEventListener('touchcancel', function(){
+      paintPull(0, '', false, '#mpullHint'); reset();
+    });
+  }
+
   function startReqPoll(){
     if(S.reqT) return;
     S.reqT = setInterval(function(){
@@ -9631,7 +10059,10 @@ function paintTagUI(){
     stopTyping(); /* 发出去了，输入状态立即清掉 */
     haptic(20); /* FR-1114 发送触感 */
     /* 没网也允许发：先乐观渲染，走失败→重发链路，避免用户白打一遍字 */
-    sendText(t);
+    /* FR-1104：带引用时由 sendText 组装 JSON content，发完立刻收引用条 */
+    var reply = S.reply;
+    S.reply = null; paintReply();
+    sendText(t, reply);
   }
 
   if(inp){
@@ -10744,7 +11175,12 @@ function paintTagUI(){
   });
 
   bind('#mpFile', 'change', function(){
-    pickMpPics(this.files);
+    /* FR-1122：输入框同时收图片和视频，按类型分流（视频一条动态限 1 个） */
+    var files = Array.prototype.slice.call(this.files || []);
+    var vids = files.filter(function(f){ return /^video\//.test(f.type || ''); });
+    var imgs = files.filter(function(f){ return /^image\//.test(f.type || ''); });
+    if(vids.length) pickMpVid(vids[0]);
+    if(imgs.length) pickMpPics(imgs);
     /* 清空 value，否则第二次选同一张图不会触发 change */
     this.value = '';
   });
@@ -11000,7 +11436,7 @@ function paintTagUI(){
 
   /* ---------------- 发表 ---------------- */
   function openMomentPost(){
-    S.mp = { text: '', pics: [], visibility: 'public', allow: [], location: '' };
+    S.mp = { text: '', pics: [], vid: null, visibility: 'public', allow: [], location: '' };
     var t = $('#mpText'); if(t) t.value = '';
     renderMpPics(); renderMpMeta();
     /* 选人要用好友列表；之前没进过通讯录的话这里是空的 */
@@ -11034,6 +11470,33 @@ function paintTagUI(){
     });
   }
 
+  /* FR-1122 视频动态：一条动态最多 1 个视频，≤50MB、≤60s。
+     时长用 <video> 元素读元数据探测，读不出来就放行（发布后也能播）。 */
+  function pickMpVid(file){
+    var d = S.mp; if(!d) return;
+    if(!/^video\//.test(file.type || '')){ toast('请选择视频文件'); return; }
+    if(file.size > 50 * 1024 * 1024){ toast('视频最大 50MB'); return; }
+    var url = URL.createObjectURL(file);
+    var probe = document.createElement('video');
+    probe.preload = 'metadata';
+    probe.src = url;
+    var commit = function(dur){
+      d.vid = { blob: file, url: url, dur: dur || 0 };
+      renderMpPics();
+    };
+    probe.onloadedmetadata = function(){
+      URL.revokeObjectURL(probe.src); /* 探测完立刻还内存，展示用外面那个 url */
+      var dur = probe.duration;
+      if(dur && dur > 60){ toast('视频最长 60 秒'); return; }
+      commit(dur);
+    };
+    probe.onerror = function(){ URL.revokeObjectURL(probe.src); commit(0); };
+    setTimeout(function(){
+      /* 元数据 3s 还没回来（部分机型）就不等了，按时长未知放行 */
+      if(!d.vid) commit(0);
+    }, 3000);
+  }
+
   function openVisSheet(){
     var d = S.mp; if(!d) return;
     var go = function(v){
@@ -11060,7 +11523,7 @@ function paintTagUI(){
   function submitMoment(){
     var d = S.mp; if(!d) return;
     var txt = String((($('#mpText') || {}).value) || d.text || '');
-    if(!txt.trim() && !d.pics.length){ toast('写点什么或选张图再发吧'); return; }
+    if(!txt.trim() && !d.pics.length && !d.vid){ toast('写点什么或选张图再发吧'); return; }
     if(txt.length > 1500){ toast('最多 1500 字'); return; }
 
     var btn = $('#btnMpSend');
@@ -11079,6 +11542,14 @@ function paintTagUI(){
     for(var k = 0; k < Math.min(3, d.pics.length); k++) ws.push(worker());
 
     Promise.all(ws).then(function(){
+      /* FR-1122 视频：传完以 JSON 项追加进 images 数组（渲染端按类型分流） */
+      if(d.vid && d.vid.blob){
+        return uploadMedia('moments/' + S.me.id, d.vid.blob, d.vid.blob.type || 'video/mp4', 'mp4')
+          .then(function(u){
+            urls.push(JSON.stringify({ url: u, dur: d.vid.dur || 0 }));
+          });
+      }
+    }).then(function(){
       return postMoment({
         content: txt,
         images: urls,
@@ -11801,7 +12272,9 @@ function paintTagUI(){
     loadErrors();
     loadConvBgs(); /* FR-317 每会话背景 */
     loadVoiceSeen(); /* FR-1106 已听语音记录 */
+    loadReacts(); /* FR-1109 气泡回应（本地演示态） */
     bindPullRefresh(); /* FR-1112 下拉刷新 */
+    bindPullMoments(); /* FR-1121 朋友圈下拉刷新 */
     applyFont();
     applyChatBg();
     applyDiscover();
@@ -11878,7 +12351,7 @@ function paintTagUI(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.09:04';
+    var BUILD='1030.10:14';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
