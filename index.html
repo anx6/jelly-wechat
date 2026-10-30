@@ -1011,7 +1011,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.15:12';
+window.__BUILD = '1030.15:23';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1049,7 +1049,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.15:12</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.15:23</div>
         </div>
       </div>
     </section>
@@ -1613,7 +1613,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.15:12</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.15:23</div>
       </div>
     </section>
 
@@ -1829,7 +1829,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.15:12</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.15:23</div>
       </div>
     </section>
 
@@ -3457,7 +3457,9 @@ try{
     return api('/rest/v1/rpc/moment_feed_unread', { method: 'POST', body: {} })
       .then(function(n){ S.momentFeedUnread = Number(n || 0); return S.momentFeedUnread; })
       .catch(function(e){
-        if(e && (e.status === 400 || e.status === 404 || e.status === 401)) S.noMomentFeed = true;
+        /* 只有「函数不存在 / 签名不匹配」才判定为没部署（404 PGRST202、400）。
+           401 不算：登录态短暂失效也会 401，据此降级会让功能在本会话里永久失灵。 */
+        if(e && (e.status === 400 || e.status === 404)) S.noMomentFeed = true;
         S.momentFeedUnread = 0;
         return 0;
       });
@@ -3472,7 +3474,7 @@ try{
         return S.momentFeed;
       })
       .catch(function(e){
-        if(e && (e.status === 400 || e.status === 404 || e.status === 401)) S.noMomentFeed = true;
+        if(e && (e.status === 400 || e.status === 404)) S.noMomentFeed = true;
         S.momentFeed = [];
         return [];
       });
@@ -12716,7 +12718,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.15:12';
+    var BUILD='1030.15:23';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
