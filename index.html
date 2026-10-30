@@ -1014,7 +1014,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.18:29';
+window.__BUILD = '1030.18:46';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1052,7 +1052,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.18:29</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.18:46</div>
         </div>
       </div>
     </section>
@@ -1616,7 +1616,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.18:29</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.18:46</div>
       </div>
     </section>
 
@@ -1699,6 +1699,11 @@ try{
           <div class="cell" id="nfVibrate"><div class="nm">新消息震动</div><div class="sw" id="swVibrate" role="switch" aria-checked="true"></div></div>
           <div class="cell" id="nfDetail"><div class="nm">通知显示消息详情</div><div class="sw" id="swDetail" role="switch" aria-checked="true"></div></div>
         </div>
+        <div class="card">
+          <div class="cell" id="nfPushMsg"><div class="nm">聊天消息通知</div><div class="sw" id="swPushMsg" role="switch" aria-checked="true"></div></div>
+          <div class="cell" id="nfPushMoment"><div class="nm">朋友圈互动通知</div><div class="sw" id="swPushMoment" role="switch" aria-checked="true"></div></div>
+        </div>
+        <div class="hint" id="nfTopicHint"></div>
         <div class="card">
           <div class="cell" id="nfDnd"><div class="nm">免打扰时段</div><div class="sw" id="swDnd" role="switch" aria-checked="false"></div></div>
           <div class="cell" id="nfFrom"><div class="nm">开始时间</div><input class="tin" id="nfFromVal" type="time" value="23:00"></div>
@@ -1832,7 +1837,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.18:29</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.18:46</div>
       </div>
     </section>
 
@@ -1945,7 +1950,9 @@ try{
     dndTo:  '07:00',     /* 免打扰结束时间（可小于开始时间，表示跨零点） */
     font:   'm',         /* 字体档位：s / m / l / xl */
     chatBg: 'default',   /* 聊天背景：default / mint / peach / night */
-    push:   false,       /* 系统推送（Web Push）开关；关掉只保留应用内提醒 */
+    push:   false,       /* 系统推送（Web Push）总开关；关掉只保留应用内提醒 */
+    pushMsg: true,       /* 系统通知的细分：聊天新消息（P8） */
+    pushMoment: true,    /* 系统通知的细分：朋友圈互动（赞/评论/回复，P8） */
     discover: {}         /* 发现页入口开关：只存「被关掉的」，缺省=开 */
   };
 
@@ -3910,7 +3917,11 @@ try{
       p_quiet_on: !!p.dnd,
       p_quiet_from: hmToMin(p.dndFrom || '23:00'),
       p_quiet_to: hmToMin(p.dndTo || '07:00'),
-      p_quiet_tz: intlOffsetMin()
+      p_quiet_tz: intlOffsetMin(),
+      /* P8：两类通知各自的开关。同样必须落库 —— Service Worker 读不到 localStorage，
+         云端只有这两个布尔才能判断「这台设备想不想收朋友圈互动」 */
+      p_msg_on: !(p.pushMsg === false),
+      p_moment_on: !(p.pushMoment === false)
     };
     return api('/rest/v1/rpc/save_push_subscription', { method: 'POST', body: body })
       .then(function(){
@@ -7820,6 +7831,24 @@ function refPayload(text, reply){
     paintSw('#swVibrate', p.vibrate);
     paintSw('#swDetail', p.detail);
     paintSw('#swDnd', p.dnd);
+    /* P8：两类系统通知各自的开关。默认都是开，只有显式 false 才算关 */
+    paintSw('#swPushMsg', p.pushMsg !== false);
+    paintSw('#swPushMoment', p.pushMoment !== false);
+
+    var th = $('#nfTopicHint');
+    if(th){
+      /* 推送总开关没开时，这两项切了也不会有任何效果 —— 说清楚，
+         否则用户会以为「关了还弹」或「开了不响」是 bug */
+      var live = !!p.push;   /* 订阅成功才会把 push 置 true，比订阅计数更可靠（计数可能还没查回来） */
+      var off = [];
+      if(p.pushMsg === false) off.push('聊天消息');
+      if(p.pushMoment === false) off.push('朋友圈互动');
+      th.textContent = (live
+        ? '这两项只管手机通知中心。' + (off.length ? ('已关闭「' + off.join('」「') + '」的系统通知，') : '')
+          + '应用内的红点与未读角标照常累计，打开应用就能看到。'
+        : '系统推送还没开启（我 → 设置 → 推送通知），上面两项开关暂不生效。')
+        + '\n· 朋友圈互动包括别人赞你的动态、评论你的动态、回复你的评论三种。';
+    }
 
     var a = $('#nfFromVal'), b = $('#nfToVal');
     if(a) a.value = p.dndFrom;
@@ -11484,7 +11513,15 @@ function closeMomentVideo(){
       })
       .then(function(ok){
         S.pushBusy = false;
-        if(ok){ savePrefs({ push: true }); toast('推送已开启，锁屏也能收到消息'); }
+        if(ok){
+          savePrefs({ push: true });
+          var tp = [];
+          if(!S.prefs || S.prefs.pushMsg !== false) tp.push('聊天消息');
+          if(!S.prefs || S.prefs.pushMoment !== false) tp.push('朋友圈互动');
+          toast(tp.length
+            ? ('推送已开启，锁屏也能收到' + tp.join('和') + '的通知')
+            : '推送已开启，但两类通知都被你关掉了，去「通知」里打开要收的那类', 3600);
+        }
         paintPushCell();
         return ok;
       })
@@ -11568,12 +11605,20 @@ function closeMomentVideo(){
         }).catch(function(){ toast('发送失败，请稍后再试'); });
       }});
       items.push({ label: '关闭推送', fn: function(){ disablePush(); } });
+      /* P8：能一键跳到通知页改「收哪一类」，比让用户自己翻两层强 */
+      var pf = S.prefs || loadPrefs();
+      var kinds = [];
+      if(pf.pushMsg !== false) kinds.push('聊天消息');
+      if(pf.pushMoment !== false) kinds.push('朋友圈互动');
+      items.push({ label: '接收范围：' + (kinds.length ? kinds.join(' / ') : '两类都已关闭'), fn: function(){
+        openNotify();
+      }});
     } else {
       items.push({ label: '开启推送', fn: function(){ enablePush(); } });
     }
     items.push({ label: '状态：' + pushStatusText() + ' · 权限：' + st, fn: function(){} });
     items.push({ label: '说明', fn: function(){
-      toast('推送走系统通知：应用关闭、手机锁屏也能收到聊天新消息和朋友圈的赞与互动。同一会话连续多条只保留最新一条', 4600);
+      toast('推送走系统通知：应用关闭、手机锁屏也能收到。聊天消息和朋友圈互动可以分别关掉（通知 → 聊天消息通知 / 朋友圈互动通知）。同一会话连续多条只保留最新一条', 5200);
     }});
     items.push({ label: '关闭', fn: function(){} });
     openSheet(items);
@@ -11848,6 +11893,11 @@ function closeMomentVideo(){
   bind('#nfVibrate', 'click', function(){ togglePref('vibrate'); });
 
   bind('#nfDetail', 'click', function(){ togglePref('detail'); });
+
+  /* P8：两类系统通知的独立开关（只影响通知中心，不影响应用内角标） */
+  bind('#nfPushMsg', 'click', function(){ togglePref('pushMsg'); });
+
+  bind('#nfPushMoment', 'click', function(){ togglePref('pushMoment'); });
 
   bind('#nfDnd', 'click', function(){ togglePref('dnd'); });
 
@@ -12648,8 +12698,14 @@ function closeMomentVideo(){
     if(k === 'sound' && !was) beep();
     if(k === 'vibrate' && !was) buzz();
     if(k === 'dnd') toast(was ? '免打扰已关闭' : '免打扰已开启');
-    /* 这三项都会改变「云端该不该弹、弹多少内容」，改动后立刻同步到订阅记录 */
-    if(k === 'detail' || k === 'dnd') syncPushPrefs();
+    /* 这两项只决定「哪一类系统通知要弹」，说清后果，别让用户以为消息丢了 */
+    if(k === 'pushMsg' || k === 'pushMoment'){
+      var nm = k === 'pushMsg' ? '聊天消息通知' : '朋友圈互动通知';
+      toast(was ? (nm + '已关闭，手机不再弹这类通知，应用内角标照常累计')
+                : (nm + '已开启'), 3200);
+    }
+    /* 这四项都会改变「云端该不该弹、弹哪一类、弹多少内容」，改动后立刻同步到订阅记录 */
+    if(k === 'detail' || k === 'dnd' || k === 'pushMsg' || k === 'pushMoment') syncPushPrefs();
   }
 
   function openFontSheet(){
@@ -13250,7 +13306,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.18:29';
+    var BUILD='1030.18:46';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
