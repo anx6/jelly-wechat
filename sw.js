@@ -1,4 +1,4 @@
-const CACHE='jelly-wechat-v50';
+const CACHE='jelly-wechat-v51';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-512-maskable.png','./icons/apple-touch-icon.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>Promise.all(ASSETS.map(u=>c.add(u).catch(()=>{})))).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
@@ -39,4 +39,58 @@ self.addEventListener('fetch',e=>{
     if(resp&&resp.ok){ const cp=resp.clone(); caches.open(CACHE).then(c=>c.put(req,cp)); }
     return resp;
   }).catch(()=>r)));
+});
+
+/* ---------- Web Push（FR-1003） ----------
+   服务端推来的 payload：{ title, body, conv, msg, tag, url }
+   前台静默：应用开着时应用内浮条已经提示过，再弹一条系统通知很吵 */
+self.addEventListener('push',e=>{
+  let d={};
+  try{ d=e.data?e.data.json():{}; }catch(_){ d={body:e.data?e.data.text():''}; }
+  e.waitUntil((async()=>{
+    try{
+      const cs=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+      if(cs.some(c=>c.focused||c.visibilityState==='visible')) return;
+    }catch(_){}
+    try{
+      await self.registration.showNotification(d.title||'果冻微信',{
+        body:d.body||'你有一条新消息',
+        tag:d.tag||'jelly',
+        renotify:false,
+        icon:'./icons/icon-192.png',
+        badge:'./icons/icon-192.png',
+        data:{url:d.url||'./',conv:d.conv||null,msg:d.msg||null}
+      });
+    }catch(_){}
+  })());
+});
+
+/* 点通知：优先唤起已打开的窗口并直接进那个会话，没有窗口才新开 */
+self.addEventListener('notificationclick',e=>{
+  e.notification.close();
+  const data=e.notification.data||{};
+  e.waitUntil((async()=>{
+    try{
+      const cs=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+      for(const c of cs){
+        try{
+          await c.focus();
+          if(data.conv) c.postMessage({t:'openConv',conv:data.conv});
+          return;
+        }catch(_){}
+      }
+    }catch(_){}
+    try{ await self.clients.openWindow(data.url||'./'); }catch(_){}
+  })());
+});
+
+/* 浏览器换掉订阅时通知页面重订阅（SW 里没有 VAPID 公钥）。
+   页面不在也没关系：下次打开 ensurePush 会补 */
+self.addEventListener('pushsubscriptionchange',e=>{
+  e.waitUntil((async()=>{
+    try{
+      const cs=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+      cs.forEach(c=>{ try{ c.postMessage({t:'pushResub'}); }catch(_){} });
+    }catch(_){}
+  })());
 });

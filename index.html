@@ -1011,7 +1011,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.15:23';
+window.__BUILD = '1030.15:59';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1049,7 +1049,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.15:23</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.15:59</div>
         </div>
       </div>
     </section>
@@ -1613,7 +1613,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.15:23</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.15:59</div>
       </div>
     </section>
 
@@ -1829,7 +1829,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.15:23</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.15:59</div>
       </div>
     </section>
 
@@ -1922,6 +1922,11 @@ try{
   /* 语音（P3-3）：微信上限 60 秒，低于 0.8 秒当误触丢弃 */
   var VOICE_MAX_MS = 60000, VOICE_MIN_MS = 800;
 
+  /* Web Push（P5-1 FR-1003）：VAPID 公钥。
+     公钥本来就是公开的（浏览器订阅时要传），私钥只在 Edge Function 的环境变量里，
+     任何前端代码都不该出现私钥。换密钥要同时改这里和 Supabase secrets。 */
+  var VAPID_PUB = 'BNGn0UIAR2MEWnPUiomPL9Jsu-SafwMq_UYJLOTZ5Y50IlX7LqNO8NMBgNJMhUMl8WKrifdk2eA7pZtpa1tz7Qw';
+
   /* ===== 本地偏好（P3-5 FR-807/808/708）=====
      全部塞进 localStorage 的 jw_prefs 一个 key：
      ① 存储空间页要按分类算占用，key 越少越好归类；
@@ -1935,6 +1940,7 @@ try{
     dndTo:  '07:00',     /* 免打扰结束时间（可小于开始时间，表示跨零点） */
     font:   'm',         /* 字体档位：s / m / l / xl */
     chatBg: 'default',   /* 聊天背景：default / mint / peach / night */
+    push:   false,       /* 系统推送（Web Push）开关；关掉只保留应用内提醒 */
     discover: {}         /* 发现页入口开关：只存「被关掉的」，缺省=开 */
   };
 
@@ -2047,6 +2053,11 @@ try{
     momentFeedUnread: 0,  /* 「赞与互动」未读数（别人赞/评论我的动态） */
     momentFeed: [],       /* 互动消息列表（moment_feed 行缓存） */
     noMomentFeed: false,  /* p3d 迁移没跑时的降级开关 */
+    /* ---- Web Push（P5-1 FR-1003）---- */
+    noPush: false,        /* 环境不支持（无 SW / 无 PushManager / 无通知权限） */
+    pushBusy: false,      /* 订阅/退订进行中，防重复点 */
+    pushSubCount: -1,     /* 服务端我这台账号的订阅数；-1 = 还没查 */
+    pushEndpoint: '',     /* 本机当前订阅的 endpoint（用于判断「本机已开」） */
     momentReadAt: 0,      /* 本地刚点过已读的时间戳（15 秒内压住服务端旧数字，防回闪） */
     momentRange: 'all',   /* 我的可见期设置 */
     momentCover: '',      /* 我的相册封面 URL */
@@ -3848,6 +3859,62 @@ try{
       });
     }
     return step();
+  }
+
+  /* ---------------- Web Push 订阅（P5-1 FR-1003，依赖 p5_push 迁移） ----------------
+     订阅对象来自 PushSubscription.toJSON()：
+       { endpoint, keys: { p256dh, auth } }
+     服务端 endpoint 唯一 —— 同一台设备换账号登录会改写 user_id，
+     所以登记必须走 definer 函数做 upsert，不能直接 insert。 */
+
+  function savePushSubscription(sub){
+    if(S.noPush) return Promise.resolve(false);
+    var k = (sub && sub.keys) || {};
+    if(!sub || !sub.endpoint || !k.p256dh) return Promise.resolve(false);
+    return api('/rest/v1/rpc/save_push_subscription', {
+      method: 'POST',
+      body: {
+        p_endpoint: sub.endpoint,
+        p_p256dh: k.p256dh,
+        p_auth: k.auth || '',
+        p_ua: (typeof navigator !== 'undefined' && navigator.userAgent) || '',
+        /* 「通知显示消息详情」跟着订阅走：关掉后服务端只发「新消息」不写正文。
+           Service Worker 读不到 localStorage，所以这个偏好必须落到服务端。 */
+        p_detail: !(S.prefs && S.prefs.detail === false)
+      }
+    }).then(function(){
+      S.pushEndpoint = sub.endpoint;
+      return true;
+    }).catch(function(e){
+      /* 400/404 = 迁移没跑；其余（网络抖动）保留功能，下次登录再试 */
+      if(e && (e.status === 400 || e.status === 404)) S.noPush = true;
+      return false;
+    });
+  }
+
+  function deletePushSubscriptionRow(endpoint){
+    if(!endpoint) return Promise.resolve();
+    return api('/rest/v1/rpc/delete_push_subscription', {
+      method: 'POST', body: { p_endpoint: endpoint }
+    }).then(function(){ S.pushEndpoint = ''; }).catch(function(){});
+  }
+
+  function loadPushCount(){
+    if(S.noPush) return Promise.resolve(0);
+    return api('/rest/v1/rpc/my_push_count', { method: 'POST', body: {} })
+      .then(function(n){ S.pushSubCount = Number(n || 0); return S.pushSubCount; })
+      .catch(function(e){
+        if(e && (e.status === 400 || e.status === 404)) S.noPush = true;
+        S.pushSubCount = 0;
+        return 0;
+      });
+  }
+
+  /* 让服务端给我自己推一条 —— hook 串只存在库里，前端拿不到，
+     所以测试推送必须由数据库代发，不能前端直连函数。 */
+  function pushTestSelf(){
+    if(S.noPush) return Promise.reject(new Error('推送不可用'));
+    return api('/rest/v1/rpc/push_test_self', { method: 'POST', body: {} });
   }
 
 /* =====================================================================
@@ -10702,6 +10769,10 @@ function closeMomentVideo(){
       syncOnline();
       /* 红点是登录后才有的东西，拿不到就算了，不阻塞首屏 */
       refreshMomentDot();
+      /* 推送状态：先查订阅数把设置页写对，再静默续订（浏览器会换 endpoint）。
+         都放后台跑，失败也只是一句「未开启」，不影响首屏。 */
+      loadPushCount().then(paintPushCell).catch(function(){});
+      setTimeout(function(){ ensurePush(); }, 1500);
     }).catch(function(e){
       setTab('chat');
       toast(friendly(e.message), 2600);
@@ -11242,32 +11313,194 @@ function closeMomentVideo(){
     sh.classList.add('on');
   });
 
-  /* ---------------- FR-1003 Web Push（P4，降级态） ----------------
-     PRD 降级方案：服务端推送（VAPID + Edge Function）未开通时，
-     仅应用内提示音 + 角标。这里如实呈现浏览器权限状态，不虚报「已推送」。 */
+  /* ---------------- FR-1003 Web Push（P5-1，真推送已接通） ----------------
+     链路：设置页授权 → SW.pushManager.subscribe → 订阅落库 →
+           别人发消息 → messages 触发器经 pg_net 调 Edge Function → 系统通知
+     如实呈现的限制：
+       · iOS 只有「添加到主屏」的 PWA 能收推送，Safari 标签页里没有
+       · 应用在前台时通知由应用内浮条负责，系统通知会被 SW 静默丢掉
+       · 「通知显示消息详情」关掉后，服务端发的是「新消息」不写正文 */
   function pushState(){
     if(!('Notification' in window)) return '不支持';
     try{ return Notification.permission === 'granted' ? '已授权'
            : (Notification.permission === 'denied' ? '已拒绝' : '未授权'); }
     catch(e){ return '不支持'; }
   }
+
+  function pushSupported(){
+    return ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
+  }
+
+  /* VAPID 公钥是 base64url，订阅接口要 Uint8Array */
+  function urlB64ToU8(b64){
+    var pad = new Array((4 - (b64.length % 4)) % 4 + 1).join('=');
+    var s = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+    var raw = atob(s), out = new Uint8Array(raw.length);
+    for(var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  function swReady(){
+    if(!('serviceWorker' in navigator)) return Promise.reject(new Error('浏览器不支持 Service Worker'));
+    return navigator.serviceWorker.ready;
+  }
+
+  /* cell 上显示的是「业务状态」而不是浏览器权限：
+     权限已授但没登记上订阅，等于没开 */
+  function pushStatusText(){
+    if(!pushSupported()) return '不支持';
+    if(pushState() === '已拒绝') return '已拒绝';
+    if(S.pushSubCount > 0) return '已开启';
+    if(pushState() === '已授权') return S.prefs && S.prefs.push ? '已授权' : '未开启';
+    return '未开启';
+  }
+  function paintPushCell(){
+    var v = $('#setPushVal');
+    if(v) v.textContent = pushStatusText();
+  }
+
+  function enablePush(){
+    if(!pushSupported()){
+      toast('当前浏览器不支持推送；iPhone 需先「添加到主屏」再从主屏图标打开', 3600);
+      return Promise.resolve(false);
+    }
+    if(pushState() === '已拒绝'){
+      toast('通知权限已被拒绝，请到系统设置里允许后再试', 3200);
+      return Promise.resolve(false);
+    }
+    if(S.pushBusy) return Promise.resolve(false);
+    S.pushBusy = true;
+
+    return Promise.resolve()
+      .then(function(){
+        if(pushState() === '已授权') return 'granted';
+        return Notification.requestPermission();
+      })
+      .then(function(p){
+        if(p !== 'granted'){ toast('未允许通知，只保留应用内提醒'); return false; }
+        return swReady().then(function(reg){
+          return reg.pushManager.getSubscription().then(function(old){
+            if(old) return old;
+            return reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlB64ToU8(VAPID_PUB)
+            });
+          });
+        }).then(function(sub){
+          return savePushSubscription(sub.toJSON ? sub.toJSON() : sub).then(function(ok){
+            if(!ok){ toast('订阅登记失败，下次打开会自动重试'); return false; }
+            return loadPushCount().then(function(){ return true; });
+          });
+        });
+      })
+      .then(function(ok){
+        S.pushBusy = false;
+        if(ok){ savePrefs({ push: true }); toast('推送已开启，锁屏也能收到消息'); }
+        paintPushCell();
+        return ok;
+      })
+      .catch(function(e){
+        S.pushBusy = false;
+        paintPushCell();
+        toast('开启推送失败：' + ((e && e.message) || '未知原因'), 3200);
+        return false;
+      });
+  }
+
+  function disablePush(){
+    if(S.pushBusy) return Promise.resolve(false);
+    S.pushBusy = true;
+    return swReady()
+      .then(function(reg){ return reg.pushManager.getSubscription(); })
+      .then(function(sub){
+        if(!sub) return null;
+        var ep = sub.endpoint;
+        /* 先退订再删库：反过来的话退订失败会留下一台「还在收」的幽灵设备 */
+        return sub.unsubscribe().then(function(){ return deletePushSubscriptionRow(ep); });
+      })
+      .then(function(){ return loadPushCount(); })
+      .then(function(){
+        S.pushBusy = false;
+        savePrefs({ push: false });
+        paintPushCell();
+        toast('推送已关闭');
+        return true;
+      })
+      .catch(function(){
+        S.pushBusy = false;
+        paintPushCell();
+        toast('关闭失败，请稍后重试');
+        return false;
+      });
+  }
+
+  /* 登录后静默续订：浏览器会不定期换 endpoint，订阅过的人不该莫名其妙失联 */
+  function ensurePush(){
+    if(!S.sess || S.noPush || !pushSupported() || pushState() !== '已授权') return Promise.resolve();
+    if(!(S.prefs && S.prefs.push)) return Promise.resolve();
+    return swReady()
+      .then(function(reg){
+        return reg.pushManager.getSubscription().then(function(sub){
+          if(sub) return savePushSubscription(sub.toJSON ? sub.toJSON() : sub);
+          return reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlB64ToU8(VAPID_PUB)
+          }).then(function(s){ return savePushSubscription(s.toJSON ? s.toJSON() : s); });
+        });
+      })
+      .then(function(){ return loadPushCount(); })
+      .then(paintPushCell)
+      .catch(function(){});
+  }
+
+  /* 「通知显示详情」改动后要把新偏好同步到订阅记录，否则锁屏通知照旧带正文 */
+  function syncPushDetail(){
+    if(!pushSupported() || pushState() !== '已授权') return;
+    swReady()
+      .then(function(reg){ return reg.pushManager.getSubscription(); })
+      .then(function(sub){ if(sub) return savePushSubscription(sub.toJSON ? sub.toJSON() : sub); })
+      .catch(function(){});
+  }
+
   bind('#setPush', 'click', function(){
     var st = pushState();
-    openSheet([
-      { label: st === '未授权' ? '允许通知' : '通知权限：' + st, fn: function(){
-        if(!('Notification' in window)){ toast('当前浏览器不支持通知'); return; }
-        if(st !== '未授权'){ toast('权限状态：' + st); return; }
-        Notification.requestPermission().then(function(p){
-          toast(p === 'granted' ? '已允许通知（仅本机）' : '未允许，仅应用内提醒');
-          var v = $('#setPushVal'); if(v) v.textContent = pushState();
-        });
-      }},
-      { label: '说明', fn: function(){
-        toast('服务端推送未开通（需 VAPID + Edge Function），离线消息按降级方案提醒：应用内提示音 + 角标', 3600);
-      }},
-      { label: '关闭', fn: function(){} }
-    ]);
+    var items = [];
+    if(!pushSupported()){
+      items.push({ label: '当前环境不支持推送', fn: function(){
+        toast('iPhone 需先把本站「添加到主屏」，再从主屏图标打开才能收推送', 4000);
+      }});
+    } else if(st === '已授权' && S.pushSubCount > 0){
+      items.push({ label: '发送测试推送', fn: function(){
+        pushTestSelf().then(function(r){
+          var d = (r && r.devices) || 0;
+          toast(d ? '已发送测试推送（' + d + ' 台设备）' : '当前账号还没有订阅的设备', 3200);
+        }).catch(function(){ toast('发送失败，请稍后再试'); });
+      }});
+      items.push({ label: '关闭推送', fn: function(){ disablePush(); } });
+    } else {
+      items.push({ label: '开启推送', fn: function(){ enablePush(); } });
+    }
+    items.push({ label: '状态：' + pushStatusText() + ' · 权限：' + st, fn: function(){} });
+    items.push({ label: '说明', fn: function(){
+      toast('推送走系统通知：应用关闭、手机锁屏也能收到。同一会话连续多条只保留最新一条通知', 4200);
+    }});
+    items.push({ label: '关闭', fn: function(){} });
+    openSheet(items);
   });
+
+  /* SW → 页面：点通知直达对应会话；订阅被浏览器换掉时重新登记 */
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.addEventListener('message', function(ev){
+      var d = (ev && ev.data) || {};
+      if(d.t === 'openConv' && d.conv){
+        var c = convById(d.conv);
+        if(c) openConv(c);
+        else loadConvs().then(function(){ var c2 = convById(d.conv); if(c2) openConv(c2); }).catch(function(){});
+      } else if(d.t === 'pushResub'){
+        ensurePush();
+      }
+    });
+  }
 
   /* ---------------- FR-107 账号与安全（演示：本地模拟，不真正改后端） ---------------- */
   bind('#setSecurity', 'click', function(){ openSecurity(); });
@@ -12118,6 +12351,7 @@ function closeMomentVideo(){
     if(k === 'sound' && !was) beep();
     if(k === 'vibrate' && !was) buzz();
     if(k === 'dnd') toast(was ? '免打扰已关闭' : '免打扰已开启');
+    if(k === 'detail') syncPushDetail();
   }
 
   function openFontSheet(){
@@ -12718,7 +12952,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.15:23';
+    var BUILD='1030.15:59';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
