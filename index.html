@@ -1014,7 +1014,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.17:24';
+window.__BUILD = '1030.17:27';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1052,7 +1052,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.17:24</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.17:27</div>
         </div>
       </div>
     </section>
@@ -1616,7 +1616,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.17:24</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.17:27</div>
       </div>
     </section>
 
@@ -1832,7 +1832,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.17:24</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.17:27</div>
       </div>
     </section>
 
@@ -1997,6 +1997,7 @@ try{
     mp: null,             /* 发表中的草稿：{ text, pics:[{blob,url}], visibility, allow:[], location } */
     mComment: null,       /* 当前正在评论的目标：{ mid, parentId, replyTo, replyNick } */
     cbarAnchor: null,     /* 评论条打开时的滚动锚点（那条动态 / 那行评论的 DOM） */
+    cbarBody: null,       /* 评论条为它垫过底部 padding 的滚动容器（关时还原） */
     /* ---- 朋友圈周边（P3-2）---- */
     noMomentExtra: false, /* p3c 没跑：没有 moment_range / moment_cover / 红点 / get_moment */
     noGroupPro: false,    /* p3d 没跑：群公告 / 管理员 / 群昵称 / 只看@我 全不可用 */
@@ -13065,7 +13066,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.17:24';
+    var BUILD='1030.17:27';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
