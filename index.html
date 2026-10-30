@@ -977,7 +977,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1030.10:14';
+window.__BUILD = '1030.11:40';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1015,7 +1015,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1030.10:14</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1030.11:40</div>
         </div>
       </div>
     </section>
@@ -1551,7 +1551,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.10:14</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1030.11:40</div>
       </div>
     </section>
 
@@ -1767,7 +1767,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.10:14</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1030.11:40</div>
       </div>
     </section>
 
@@ -2015,6 +2015,9 @@ try{
     readMark: {},         /* 会话id -> 本地已读时间戳。返回列表时不等服务端写回，
                              用它在这个短窗口内压住服务端返回的旧 unread，避免角标回闪 */
     deletedIds: {},       /* 消息id -> 1。本地删除（只我这一侧看不见）的消息集合 */
+    convPrevFix: {},      /* 会话id -> {at,content,prev}。本地删掉「最后一条消息」后的预览修正 */
+    ovlClose: null,       /* 当前弹层（长按菜单/确认框/表情回应条）的关闭函数，配合返回手势 FR-1101 */
+    recTouchDown: false,  /* 录音按钮手指是否仍按着：getUserMedia 授权回来时手指可能早已松开 */
     /* ---- 本地偏好（P3-5）---- */
     prefs: null,          /* loadPrefs() 填充，见下方 PREF_DEF */
     noticeAt: 0,          /* 上次响铃/震动的时刻，防连发把手机震成按摩器 */
@@ -2669,13 +2672,53 @@ try{
     });
   }
 
+  /* 本地删除「最后一条消息」后的预览修正：list_conversations 的 last_* 服务端
+     仍是那条被删的消息（本地删除只影响我这一侧），用 created_at+content 做
+     指纹命中后把预览回退到上一条可见消息，否则列表一直显示已删内容。 */
+  function loadConvPrevFix(){
+    try{ S.convPrevFix = JSON.parse(localStorage.getItem('jw_convprevfix') || '{}') || {}; }
+    catch(e){ S.convPrevFix = {}; }
+  }
+  function saveConvPrevFix(){
+    try{ localStorage.setItem('jw_convprevfix', JSON.stringify(S.convPrevFix)); }catch(e){}
+  }
+
+  /* 备注显示（FR-506 的呈现侧）：单聊里「我给对方设的备注」顶替昵称出现在
+     会话列表、聊天标题等处。原始昵称留在 peer_raw_nick，重算先还原再覆盖，
+     清掉备注能正确回退。群聊不受影响。 */
+  function applyPeerRemarks(){
+    (S.convs || []).forEach(function(c){
+      if(c.ctype === 'group' || !c.peer_id) return;
+      if(c.peer_raw_nick == null) c.peer_raw_nick = c.peer_nick;
+      c.peer_nick = c.peer_raw_nick;
+      var fs = S.friends || [];
+      for(var i = 0; i < fs.length; i++){
+        if(String(fs[i].user_id) === String(c.peer_id)){
+          if(fs[i].remark) c.peer_nick = fs[i].remark;
+          break;
+        }
+      }
+    });
+  }
+
   function loadConvs(){
+    loadConvPrevFix();
     return api('/rest/v1/rpc/list_conversations', { method: 'POST', body: {} }).then(function(rows){
       /* p3d 之前 list_conversations 不返回 only_mention：行里没这个键就说明
          服务端没升级，锁死降级并把「只看 @我」入口藏掉 —— 不能让用户点进去
          却每次报 400。和 mentions / jelly_id 用的是同一套探测思路。 */
       if(rows && rows.length && rows[0].only_mention === undefined) S.noGroupPro = true;
       S.convs = (rows || []).map(function(c){
+        var last = (c.last_type || c.last_at)
+          ? { content: c.last_content || '', type: c.last_type, sender_id: c.last_sender, created_at: c.last_at }
+          : null;
+        /* 我删掉的最后一条：预览回退到上一条可见消息；有更新消息后修正自动过期 */
+        var fx = S.convPrevFix[c.id];
+        if(fx && last && last.created_at === fx.at && last.content === fx.content){
+          last = fx.prev;
+        }else if(fx && last && last.created_at > fx.at){
+          delete S.convPrevFix[c.id];
+        }
         return {
           id: c.id, ctype: c.ctype, title: c.title, code: c.room_code,
           peer_id: c.peer_id, peer_nick: c.peer_nick, peer_avatar: c.peer_avatar,
@@ -2683,9 +2726,7 @@ try{
              撤回后服务端返回 content='' + type='recalled'，空串是 falsy，
              会把 last 判成 null，列表直接显示「开始聊天吧」，撤回提示反而看不见。
              用 last_type / last_at 作为「这条会话存在消息」的依据。 */
-          last: (c.last_type || c.last_at)
-            ? { content: c.last_content || '', type: c.last_type, sender_id: c.last_sender, created_at: c.last_at }
-            : null,
+          last: last,
           /* 本地刚标记过已读的会话，在这个短窗口内忽略服务端可能还没更新的 unread，
              避免「返回列表后角标又冒出来再消失」的闪烁 */
           unread: (S.readMark[c.id] && (Date.now() - S.readMark[c.id]) < 15000) ? 0 : Number(c.unread || 0),
@@ -2708,6 +2749,7 @@ try{
         return false;
       });
       if(changed) writeHidden(hid);
+      applyPeerRemarks();
       return S.convs;
     });
   }
@@ -2759,6 +2801,9 @@ try{
       .then(function(list){ S.blockedList = list || []; })
       .catch(function(){ S.blockedList = S.blockedList || []; });
     return Promise.all([loadConvs(), loadFriends(), loadRequests(), loadDeletions(), pBlock]).then(function(){
+      /* loadConvs 与 loadFriends 并发跑，首登时 friends 可能还没到：
+         齐了以后再算一遍备注顶替，列表第一次渲染就是对的 */
+      applyPeerRemarks();
       renderConvs(); renderFriends(); renderRequests(); renderMe();
     });
   }
@@ -3029,6 +3074,24 @@ try{
         c.rows = c.rows.filter(function(r){ return String(r.id) !== String(m.id); });
         delete c.seen[m.id];
       });
+      /* 预览修正：删的是会话最后一条时，列表预览回退到上一条可见消息（本地口径） */
+      var cid0 = S.cur ? S.cur.id : null;
+      if(cid0){
+        var rows0 = (S.msgCache[cid0] || {}).rows || [];
+        var prev0 = null;
+        for(var ri = rows0.length - 1; ri >= 0; ri--){
+          var rr = rows0[ri];
+          if(rr.deleted_at) continue;
+          prev0 = { content: rr.content, type: rr.msg_type, sender_id: rr.sender_id, created_at: rr.created_at };
+          break;
+        }
+        S.convPrevFix[cid0] = { at: m.created_at, content: m.content, prev: prev0 };
+        saveConvPrevFix();
+        var cc0 = convById(cid0);
+        if(cc0 && cc0.last && cc0.last.created_at === m.created_at && cc0.last.content === m.content){
+          cc0.last = prev0;
+        }
+      }
       toast('已删除');
     }).catch(function(e){ toast(friendly(e && e.message)); });
   }
@@ -5810,7 +5873,7 @@ function refPayload(text, reply){
   var REACT_EMOJIS = ['❤️', '😂', '👍', '😮', '😢', '🎉'];
 
   function bindReact(bub, wrap, m){
-    bub.addEventListener('dblclick', function(){
+    function showReact(){
       closeReactPop();
       var pop = el('div', 'reactpop');
       REACT_EMOJIS.forEach(function(emo){
@@ -5827,15 +5890,33 @@ function refPayload(text, reply){
       });
       wrap.appendChild(pop);
       wrap._reactPop = pop;
+      /* 弹层同样压一层历史（FR-1101 联动）：返回手势第一滑先关它 */
+      pushOvl(function(){ closeReactPop(true); });
       setTimeout(function(){
         document.addEventListener('click', closeReactPop, { once: true });
       }, 0);
+    }
+    /* iOS Safari 原生 dblclick 基本不触发（双击易被判成缩放/两次独立 tap），
+       自己数 touchend：320ms 内两击、且不是长按（>350ms）才算双击。
+       桌面端保留 dblclick。 */
+    var lastTap = 0, downAt = 0;
+    bub.addEventListener('touchstart', function(){ downAt = Date.now(); }, { passive: true });
+    bub.addEventListener('touchend', function(){
+      if(Date.now() - downAt > 350){ lastTap = 0; return; }
+      var now = Date.now();
+      if(now - lastTap < 320){ lastTap = 0; showReact(); }
+      else lastTap = now;
     });
+    bub.addEventListener('dblclick', showReact);
   }
 
-  function closeReactPop(){
+  function closeReactPop(fromPop){
     var pops = $$('.reactpop');
-    pops.forEach(function(p){ if(p.parentNode) p.parentNode.removeChild(p); });
+    var had = false;
+    pops.forEach(function(p){ if(p.parentNode){ p.parentNode.removeChild(p); had = true; } });
+    /* 手动关（点别处/再双击）要消费掉打开时压的那层历史；
+       fromPop=true 说明这层历史已被系统返回手势消费，只关 UI */
+    if(had && !fromPop) clearOvl();
   }
 
   function paintReactRow(wrap, m){
@@ -6111,6 +6192,8 @@ function refPayload(text, reply){
   function openSheet(items){
     var sh = $('#sheet'), mk = $('#mask');
     if(!sh) return;
+    /* 已开着就只换内容，不再重复压历史 */
+    var wasOn = sh.classList.contains('on');
     sh.innerHTML = '';
     var card = el('div', 'scard');
     card.setAttribute('role', 'menu');
@@ -6136,6 +6219,9 @@ function refPayload(text, reply){
     sh.appendChild(cancel);
     if(mk) mk.classList.add('on');
     sh.classList.add('on');
+    /* FR-1101 联动：弹层也是一层「页内层级」，压一层历史。
+       系统返回手势第一滑先关弹层（popstate→ovlClose），再滑才退子屏。 */
+    if(!wasOn) pushOvl(function(){ closeSheet(true); });
     /* FR-1118 焦点管理：记住触发元素，焦点移入首个操作项；关闭/失焦后归还 */
     try{
       sheetReturnFocus = document.activeElement;
@@ -6145,14 +6231,18 @@ function refPayload(text, reply){
 
   var sheetReturnFocus = null;
 
-  function closeSheet(){
+  function closeSheet(fromPop){
     var sh = $('#sheet'), mk = $('#mask');
+    var wasOn = sh && sh.classList.contains('on');
     if(sh) sh.classList.remove('on');
     if(mk) mk.classList.remove('on');
     try{
       if(sheetReturnFocus && sheetReturnFocus.focus) sheetReturnFocus.focus();
     }catch(e){}
     sheetReturnFocus = null;
+    /* 手动关（点选项/取消/遮罩）要消费掉 openSheet 压的那层历史；
+       fromPop=true 说明这层历史已被系统返回手势消费，只关 UI */
+    if(wasOn && !fromPop) clearOvl();
   }
 
   /* FR-1113 自绘二次确认：替代 window.confirm，样式与长按菜单同一套 sheet。
@@ -6208,6 +6298,16 @@ function refPayload(text, reply){
         /* FR-304 转文字：录制时生成过转写就展示；没有也给出入口并如实说明原因 */
         items.push({ label: '转文字', fn: function(){ showVoiceText(m); } });
       } else {
+        /* FR-1108 实体识别：文字消息带 URL / 手机号时，长按菜单给直达操作。
+           气泡里的链接、号码本身也可直接点（renderEntityText），走同一套确认弹层。 */
+        var esegs = splitEntities(refTextOf(m.content));
+        var eurl = '', etel = '';
+        for(var ei = 0; ei < esegs.length; ei++){
+          if(!eurl && esegs[ei].t === 'url') eurl = esegs[ei].v;
+          if(!etel && esegs[ei].t === 'tel') etel = esegs[ei].v;
+        }
+        if(eurl) items.push({ label: '打开链接', fn: function(){ confirmOpenLink(eurl); } });
+        if(etel) items.push({ label: '拨打 ' + etel, fn: function(){ confirmCallTel(etel); } });
         items.push({ label: '复制', fn: function(){ copyText(refTextOf(m.content)); } });
       }
       /* FR-1104 引用回复：文字/图片/语音/视频/文件都能引 */
@@ -8390,9 +8490,14 @@ function openMomentVideo(url){
     ov = el('div', 'vidplayer');
     ov.id = 'vidPlayer';
     var v = el('video', null);
-    v.controls = true;
     v.playsInline = true;
     v.setAttribute('playsinline', '');
+    /* 不用原生 controls：iOS Safari 会盖一层半透明控制面板（暂停键/±10s 键）
+       正压在画面中间挡视线。点画面切换播放/暂停，关闭走右上 ✕ 或点空白处。 */
+    v.addEventListener('click', function(){
+      if(v.paused){ var p2 = v.play(); if(p2 && p2.catch) p2.catch(function(){}); }
+      else v.pause();
+    });
     var x = el('span', 'vx', '✕');
     x.setAttribute('role', 'button');
     x.setAttribute('aria-label', '关闭视频');
@@ -9703,10 +9808,32 @@ function closeMomentVideo(){
     S.histPopping = true;
     try{ history.back(); }catch(e){ S.histPopping = false; }
   }
+  /* 弹层（长按菜单/确认框/表情回应条）也占一层历史：打开时压入，
+     系统返回手势第一滑先关弹层；手动关闭时用 popHist 消费掉这一层。 */
+  function pushOvl(closeFn){
+    if(!S.sess) return;
+    S.ovlClose = closeFn;
+    pushHist();
+  }
+  function clearOvl(fromPop){
+    var f = S.ovlClose;
+    S.ovlClose = null;
+    if(!f) return;
+    if(fromPop){ if(S.histDepth > 0) S.histDepth--; }
+    else { popHist(); f(); }  /* 手动路径：消费历史 + 确保弹层真的关掉（back() 进来时还没关） */
+  }
   window.addEventListener('popstate', function(){
     /* histPopping=true 说明这层是我们自己的返回按钮消费的，UI 已经切完，忽略 */
     if(S.histPopping){ S.histPopping = false; return; }
     if(!S.sess || !S.booted) return;
+    /* 弹层还开着：这一滑只关弹层，不退子屏（FR-1101 序号25） */
+    if(S.ovlClose){
+      var f = S.ovlClose;
+      S.ovlClose = null;
+      if(S.histDepth > 0) S.histDepth--;
+      f();
+      return;
+    }
     if(S.histDepth <= 0) return;
     /* 系统返回手势：历史已经被系统消费掉一层，让 back() 跳过 popHist（否则会连退两层） */
     S.histPopping = true;
@@ -9783,6 +9910,9 @@ function closeMomentVideo(){
 
   function back(){
     stopChatPoll();
+    /* 弹层还开着时，应用内返回先只关弹层（与系统返回手势行为一致）。
+       clearOvl 内部走 popHist，popstate 由 histPopping 守卫吃掉。 */
+    if(S.ovlClose){ clearOvl(); return; }
     /* FR-1101：消费掉一层我们自己压的历史（系统手势进来时已消费，跳过）。
        放在最前面：后面的分支无论走哪条返回路径，层数都要对齐。 */
     if(S.histPopping){ S.histPopping = false; }
@@ -10379,6 +10509,8 @@ function closeMomentVideo(){
     return loadMe().then(function(){
       return Promise.all([loadConvs(), loadFriends(), loadRequests()]);
     }).then(function(){
+      /* loadConvs 与 loadFriends 并发，首登时备注映射可能还没到，补算一遍 */
+      applyPeerRemarks();
       renderConvs(); renderFriends(); renderRequests(); renderMe();
       setTab('chat');
       startReqPoll();
@@ -12036,6 +12168,15 @@ function closeMomentVideo(){
 
     S.recCancel = false;
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+      /* 手指早就松开了：按住时弹了权限框，用户去系统设置授权再回来，
+         touch 事件早已结束 —— 此时不能再进录音态，否则没人能替他「松手」，
+         麦克风一直占着，60 秒后还会把这段空录音自动发出去。直接收掉。 */
+      if(!S.recTouchDown || document.hidden){
+        try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+        paintRec(false);
+        toast('已取消本次录音');
+        return;
+      }
       var mime = pickMime();
       var mr;
       try{ mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined); }
@@ -12201,6 +12342,7 @@ function closeMomentVideo(){
       e.preventDefault();
       try{ btn.setPointerCapture && btn.setPointerCapture(e.pointerId); }catch(ex){}
       recY0 = e.clientY;
+      S.recTouchDown = true;
       startRec();
     });
     btn.addEventListener('pointermove', function(e){
@@ -12213,10 +12355,11 @@ function closeMomentVideo(){
     });
     btn.addEventListener('pointerup', function(e){
       e.preventDefault();
+      S.recTouchDown = false;
       if(!S.rec) return;
       if(S.recCancel) cancelRec(); else endRec();
     });
-    btn.addEventListener('pointercancel', function(){ cancelRec(); });
+    btn.addEventListener('pointercancel', function(){ S.recTouchDown = false; cancelRec(); });
     /* 长按会弹系统菜单 / 选择文字，一律掐掉 */
     btn.addEventListener('contextmenu', function(e){ e.preventDefault(); });
   })();
@@ -12351,7 +12494,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1030.10:14';
+    var BUILD='1030.11:40';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
