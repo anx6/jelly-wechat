@@ -820,6 +820,10 @@
   .friendcard .frow:last-child{border-bottom:none;}
   .friendcard .frow .k{width:64px;flex-shrink:0;color:var(--dim);font-weight:700;}
   .friendcard .frow .v{color:var(--ink);font-weight:600;word-break:break-all;flex:1;}
+  /* Q-16 错误看板聚合横条：不引图表库，几条 div 够用 */
+  .ebar{position:relative;height:6px;border-radius:3px;background:var(--skel);overflow:hidden;margin-top:5px;}
+  .ebar i{position:absolute;left:0;top:0;bottom:0;background:var(--pink);opacity:.55;border-radius:3px;
+          transition:width .25s ease;}
   .friendcard .frow .v.empty{color:var(--dim);font-weight:600;}
   .friendcard .fact{padding:14px;font-weight:800;font-size:14.5px;text-align:center;border-bottom:2px solid var(--line-soft);cursor:pointer;}
   .friendcard .frow .frm{margin-left:auto;color:var(--purple);font-weight:800;font-size:13px;cursor:pointer;padding-left:12px;}
@@ -991,6 +995,9 @@
   .reactrow{display:flex;gap:3px;margin-top:3px;}
   .reactrow .remo{font-size:12px;line-height:1;background:var(--card2);border:1px solid var(--line-soft);
                   border-radius:999px;padding:2px 6px;cursor:pointer;}
+  /* 我参与过的那个表情：只换边框和文字色，不换底色 ——
+     深色下 --cream 会暗到和气泡糊成一片，看不出这是一枚 chip */
+  .reactrow .remo.mine{border-color:var(--pink);color:var(--pink);}
   /* FR-1120 双击头像点赞脉冲 */
   .post .a.pulsing{animation:avapulse .45s ease;}
   @keyframes avapulse{0%{transform:scale(1);}40%{transform:scale(1.28);}100%{transform:scale(1);}}
@@ -1015,7 +1022,7 @@
 <script>
 /* 构建号注入到 JS 里：关于页和「检查更新」要读它。
    只写在 HTML 文本里的话，JS 侧读不到，只能显示 dev。 */
-window.__BUILD = '1031.03:24';
+window.__BUILD = '1031.09:02';
 try{
   var t = localStorage.getItem('jw_theme') || 'auto';
   if(t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)){
@@ -1053,7 +1060,7 @@ try{
             <button class="lbtn dim" id="btnLogin" type="button"><span>进入果冻微信</span></button>
             <div class="lhint" id="lHint">第一次来请先切到「注册」<br>注册后建个房间，把 6 位码发给对方就行</div>
           </div>
-          <div class="lfoot">JELLY WECHAT · 构建 1031.03:24</div>
+          <div class="lfoot">JELLY WECHAT · 构建 1031.09:02</div>
         </div>
       </div>
     </section>
@@ -1617,7 +1624,7 @@ try{
         <div class="card">
           <div class="cell" id="setAbout"><div class="chip" style="background:var(--yellow)">💡</div><div class="nm">关于果冻微信</div><div class="chev">›</div></div>
         </div>
-        <div class="setfoot" id="setBuild">果冻微信 · 构建 1031.03:24</div>
+        <div class="setfoot" id="setBuild">果冻微信 · 构建 1031.09:02</div>
       </div>
     </section>
 
@@ -1838,7 +1845,7 @@ try{
         </div>
         <div class="card"><div class="cell" id="cellSettings"><div class="chip" style="background:var(--purple)">⚙️</div><div class="nm">设置</div><div class="chev">›</div></div></div>
         <div class="card"><div class="cell" data-logout><div class="chip" style="background:#ff2e88">🚪</div><div class="nm">退出登录</div><div class="chev">›</div></div></div>
-        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1031.03:24</div>
+        <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--dim);padding:16px 0 20px;letter-spacing:.5px;">果冻微信 · 构建 1031.09:02</div>
       </div>
     </section>
 
@@ -2074,6 +2081,9 @@ try{
     pushSubCount: -1,     /* 服务端我这台账号的订阅数；-1 = 还没查 */
     pushEndpoint: '',     /* 本机当前订阅的 endpoint（用于判断「本机已开」） */
     noErrServer: false,   /* p7 迁移没跑时的降级开关：错误只留本地 */
+    noErrStats: false,    /* p14（聚合）没跑时只关掉概览，不影响明细列表 */
+    errStats: null,       /* Q-16 概览：{ days, total, today, by_day[], by_src[], by_page[] } */
+    errStatsBusy: false,
     errServerList: [],    /* 服务端错误日志缓存（设置页「错误上报」展示） */
     errServerBusy: false, /* 拉取/清空服务端日志进行中 */
     momentReadAt: 0,      /* 本地刚点过已读的时间戳（15 秒内压住服务端旧数字，防回闪） */
@@ -2095,9 +2105,12 @@ try{
     histPopping: false,   /* popstate 守卫：应用内返回主动 history.back() 时，popstate 到达后不再触发第二次 back() */
     reedit: null,         /* FR-1105 最近一次撤回的自己的文字消息 { cid, text, at } */
     reply: null,          /* FR-1104 当前引用回复目标 { mid, name, x } */
-    react: {},            /* FR-1109 气泡表情回应（本地演示态）"<cid>:<mid>" -> { emo: ts } */
+    react: {},            /* FR-1109 表情回应：cid -> { mid: [ {u:uid, e:emo} ] }（p13 起走服务端，多端一致） */
+    reactAt: {},          /* cid -> 该会话已同步到的最新 updated_at（增量游标，null = 还没拉过全量） */
+    noReact: false,       /* 服务端表不可用（400/404）时锁死，退回本机演示态 */
     voiceSeen: {},        /* FR-1106 已听语音 cid -> { msgId: ts }，本地记录（未听红点用） */
     noDraft: false,       /* 服务端 draft 列不可用时锁死，不再反复 PATCH（FR-1107） */
+    reactT: 0,            /* FR-1109 表情回应同步定时器 */
     cur: null,            /* 当前会话 */
     lastId: 0,            /* 当前会话最后一条已确认消息 id（增量拉取游标） */
     lastAt: null,         /* 当前会话最后一条消息的服务器时间（已读位点） */
@@ -2196,24 +2209,52 @@ try{
 
   /* ---------------- 已听语音（FR-1106，纯前端）----------------
      只存「我听过哪些语音」，用于未听红点。key 是 cid，内层 key 是消息 id。 */
-  /* FR-1109 表情回应：无后端表，先做本地演示态（只记录我自己的回应）。
-     key 用 "<cid>:<mid>"，会话切换互不串。 */
+  /* FR-1109 表情回应（p13 起服务端化）
+     结构：S.react[cid][mid] = [ {u: 用户id, e: 表情} ]
+     一条消息每人只留一个回应，换表情是替换 —— 与微信一致，与后端 PK 一致。
+     降级（S.noReact）时只记我自己的，纯内存，不再写 localStorage：
+     旧版把回应存在 jw_msg_react 里，换设备/对方全都看不到，是个只骗自己的功能，
+     这里顺手把旧 key 删掉，免得它被当成「数据还在」的证据。 */
   function loadReacts(){
-    S.react = loadJSON('jw_msg_react', {}) || {};
+    S.react = {};
+    S.reactAt = {};
+    try{ localStorage.removeItem('jw_msg_react'); }catch(e){}
   }
+
   function reactsOf(cid, mid){
-    var k = String(cid) + ':' + String(mid);
-    var m = S.react && S.react[k];
-    if(!m) return [];
-    return Object.keys(m).sort(function(a, b){ return m[a] - m[b]; });
+    var box = S.react && S.react[cid];
+    var list = box && box[String(mid)];
+    return list || [];
   }
+
+  /* 我在这条消息上的回应（没有则空串） */
+  function myReactOf(cid, mid){
+    var me = S.me && S.me.id;
+    if(!me) return '';
+    var list = reactsOf(cid, mid), i;
+    for(i = 0; i < list.length; i++){ if(list[i].u === me) return list[i].e; }
+    return '';
+  }
+
+  /* 把某人对某条消息的回应落成给定值；emo 为空表示移除。
+     同 emo 去重、按加入顺序保留，重绘时顺序稳定不会跳。 */
+  function applyReactRow(cid, mid, uid, emo){
+    if(!cid || !mid || !uid) return;
+    var box = S.react[cid] || (S.react[cid] = {});
+    var key = String(mid);
+    var list = (box[key] || []).filter(function(x){ return x.u !== uid; });
+    if(emo) list.push({ u: uid, e: emo });
+    if(list.length) box[key] = list;
+    else delete box[key];
+  }
+
+  /* 本机乐观翻转：返回翻转后是否处于「已回应」。网络请求由 api.js 的 sendReact 负责。 */
   function toggleReact(cid, mid, emo){
-    var k = String(cid) + ':' + String(mid);
-    if(!S.react) S.react = {};
-    var m = S.react[k] || (S.react[k] = {});
-    if(m[emo]){ delete m[emo]; }else{ m[emo] = Date.now(); }
-    try{ localStorage.setItem('jw_msg_react', JSON.stringify(S.react)); }catch(e){}
-    return !!m[emo];
+    var me = S.me && S.me.id;
+    if(!me || !cid || !mid) return false;
+    var next = (myReactOf(cid, mid) === emo) ? '' : emo;
+    applyReactRow(cid, mid, me, next);
+    return next !== '';
   }
 
   function loadVoiceSeen(){
@@ -3327,6 +3368,48 @@ try{
     }).catch(function(){});
   }
 
+  /* ---------------- FR-1109 表情回应（p13 服务端化） ----------------
+     since 为 null → 全量快照（进会话时用）；否则只拉 updated_at 变过的行。
+     取消回应在后端是「emo 置空 + 刷新 updated_at」而不是删行，
+     所以增量里会带回 emo='' 的记录 —— 必须照样 apply，那是唯一能得知
+     「对方把回应撤了」的信号，过滤掉就永远同步不了取消。
+
+     游标取服务端返回的最大 updated_at，不用本地时钟：
+     手机时钟偏快会让后续增量永远漏行，偏慢只是重复拉几行（幂等写入，无害）。 */
+  function fetchReacts(cid, since){
+    if(!cid || S.noReact) return Promise.resolve(0);
+    var body = { p_conv: cid };
+    if(since) body.p_since = since;
+    return api('/rest/v1/rpc/list_message_reacts', { method: 'POST', body: body })
+      .then(function(rows){
+        rows = rows || [];
+        var maxAt = since || null;
+        rows.forEach(function(r){
+          if(!r || !r.message_id) return;
+          applyReactRow(cid, r.message_id, r.user_id, r.emo || '');
+          if(!maxAt || String(r.updated_at) > String(maxAt)) maxAt = r.updated_at;
+        });
+        if(maxAt) S.reactAt[cid] = maxAt;
+        return rows.length;
+      })
+      .catch(function(e){
+        /* 只认 400/404 —— 401 是登录态瞬时失效，据此降级会让整会话的表情回应失灵 */
+        if(e && (e.status === 400 || e.status === 404)) S.noReact = true;
+        return 0;
+      });
+  }
+
+  function sendReact(mid, emo){
+    if(S.noReact || !mid) return Promise.resolve(null);
+    return api('/rest/v1/rpc/toggle_message_react', {
+      method: 'POST', body: { p_msg: Number(mid), p_emo: emo }
+    }).then(function(r){ return r || null; })
+      .catch(function(e){
+        if(e && (e.status === 400 || e.status === 404)) S.noReact = true;
+        throw e;
+      });
+  }
+
   /* 删除会话：PRD 要求「仅删本地、对方无感、收到新消息重新出现」，
      所以记在 localStorage 里（cid -> 删除时刻），不碰服务端。 */
 
@@ -4057,6 +4140,21 @@ try{
     if(S.noErrServer) return Promise.resolve(false);
     return api('/rest/v1/rpc/clear_my_error_logs', { method: 'POST', body: {} })
       .then(function(){ return true; }).catch(function(){ return false; });
+  }
+
+  /* Q-16 聚合：最近 N 天按天 / 按来源 / 按页面的次数分布。
+     只统计自己的记录（后端按 auth.uid() 过滤）。
+     降级判据同样只认 400/404 —— p14 没执行时这个 RPC 是 404，
+     不能因此把明细列表也关掉，所以用独立开关 S.noErrStats。 */
+  function loadErrorStats(days){
+    if(S.noErrStats) return Promise.resolve(null);
+    return api('/rest/v1/rpc/my_error_stats', {
+      method: 'POST', body: { p_days: days || 7 }
+    }).then(function(r){ return r || null; })
+      .catch(function(e){
+        if(e && (e.status === 400 || e.status === 404)) S.noErrStats = true;
+        return null;
+      });
   }
 
 /* =====================================================================
@@ -6143,7 +6241,7 @@ function refPayload(text, reply){
     }
     /* 长按菜单（FR-310 复制）*/
     bindLongPress(bub, function(){ msgMenu(wrap, m); });
-    /* FR-1109 双击气泡快捷回应（本地演示态） */
+    /* FR-1109 双击气泡快捷回应（p13 起走服务端，多端可见） */
     if(m.id && !m.deleted_at && !pending){
       bindReact(bub, wrap, m);
       paintReactRow(wrap, m);
@@ -6258,7 +6356,7 @@ function refPayload(text, reply){
     return d;
   }
 
-  /* ---------- FR-1109 表情回应（本地演示态） ---------- */
+  /* ---------- FR-1109 表情回应（p13 服务端化） ---------- */
   var REACT_EMOJIS = ['❤️', '😂', '👍', '😮', '😢', '🎉'];
 
   function bindReact(bub, wrap, m){
@@ -6270,10 +6368,8 @@ function refPayload(text, reply){
         s.setAttribute('role', 'button');
         s.addEventListener('click', function(ev){
           ev.stopPropagation();
-          var on = toggleReact(S.cur ? S.cur.id : '', m.id, emo);
           closeReactPop();
-          paintReactRow(wrap, m);
-          if(on) haptic(10);
+          doMsgReact(wrap, m, emo);
         });
         pop.appendChild(s);
       });
@@ -6308,20 +6404,34 @@ function refPayload(text, reply){
     if(had && !fromPop) clearOvl();
   }
 
+  /* 回应条：按表情聚合，一枚 chip 显示「表情 + 人数」（微信同款）。
+     单人时只显示表情，不加数字，避免气泡底下太吵。
+     顺序按该表情首次出现的先后，有人新回应时不会整体重排。 */
   function paintReactRow(wrap, m){
-    if(!wrap) return;
+    if(!wrap || !m) return;
     var old = wrap.querySelector('.reactrow');
     if(old) old.remove();
+    /* 撤回的消息不画回应条：后端允许历史回应留着（删消息时才级联清），
+       但挂在「已撤回」下面没有意义 */
+    if(m.deleted_at) return;
     var list = reactsOf(S.cur ? S.cur.id : '', m.id);
     if(!list.length) return;
+    var order = [], byEmo = {};
+    list.forEach(function(x){
+      if(!byEmo[x.e]){ byEmo[x.e] = []; order.push(x.e); }
+      byEmo[x.e].push(x.u);
+    });
+    var me = S.me && S.me.id;
     var row = el('div', 'reactrow');
-    list.forEach(function(emo){
-      var s = el('span', 'remo' , emo);
-      s.title = '点按取消回应';
+    order.forEach(function(emo){
+      var us = byEmo[emo];
+      var mine = us.indexOf(me) >= 0;
+      var s = el('span', 'remo', us.length > 1 ? (emo + ' ' + us.length) : emo);
+      if(mine) s.classList.add('mine');
+      s.title = mine ? '点按取消回应' : '点按回应';
       s.addEventListener('click', function(ev){
         ev.stopPropagation();
-        toggleReact(S.cur ? S.cur.id : '', m.id, emo);
-        paintReactRow(wrap, m);
+        doMsgReact(wrap, m, emo);
       });
       row.appendChild(s);
     });
@@ -6733,6 +6843,9 @@ function refPayload(text, reply){
     var mine = (sid === S.me.id);
     var bub = wrap.querySelector('.bubble');
     if(!bub) return;
+    /* 回应条挂在 .bubble 外面的 wrap 上，气泡清空不会带走它，得自己摘掉 */
+    var rrow = wrap.querySelector('.reactrow');
+    if(rrow) rrow.remove();
     bub.className = 'bubble recalled';
     bub.innerHTML = '';
     bub.appendChild(document.createTextNode(mine ? '你撤回了一条消息' : '对方撤回了一条消息'));
@@ -9810,6 +9923,10 @@ function closeMomentVideo(){
     navDir = 'fwd';
     goScreen('chatdetail');
     pushHist(); /* FR-1101：聊天详情压一层历史 */
+    /* FR-1109 表情回应：进会话拉一次全量（游标清空），
+       离开期间别人加的、撤的回应都能补齐 —— 增量只认 updated_at，不补全量会一直差那几条。 */
+    S.reactAt[c.id] = null;
+    fetchReacts(c.id, null).then(function(n){ if(n) repaintReacts(); }).catch(function(){});
     if(hit){ cache.used = Date.now(); renderCached(cache); }
     stopListPoll(); stopChatPoll(); stopPeerState();
     /* FR-317 每会话背景：会话级优先于全局；换会话时输入提示必须清掉 */
@@ -10528,15 +10645,69 @@ function closeMomentVideo(){
   }
 
   /* ---------------- 轮询 ---------------- */
+  /* FR-1109 表情回应：点下去先本地翻转，用户立刻看到反馈；服务端失败再回滚并提示。
+     和点赞同一套路 —— 弱网下「点了没反应」比「点了出错」更让人困惑。 */
+  function doMsgReact(wrap, m, emo){
+    if(!m || !m.id || !S.cur || !S.me) return;
+    var cid = S.cur.id;
+    var prev = myReactOf(cid, m.id);
+    var on = toggleReact(cid, m.id, emo);
+    paintReactRow(wrap, m);
+    if(on) haptic(10);
+    if(S.noReact) return;
+    sendReact(m.id, emo).then(function(r){
+      /* 只有拿到确定的 emo 字段才对齐。返回空数组/空对象一律当「没意见」，
+         不拿它去覆盖本地乐观值 —— 代理或网关把 RPC 响应吃掉时就会是这样，
+         那种情况下把用户的回应抹掉比留一个可能过期的状态糟糕得多。 */
+      if(!r || typeof r.emo !== 'string') return;
+      if(r.emo !== myReactOf(cid, m.id)){
+        applyReactRow(cid, m.id, S.me.id, r.emo);
+        paintReactRow(wrap, m);
+      }
+    }).catch(function(){
+      applyReactRow(cid, m.id, S.me.id, prev);
+      paintReactRow(wrap, m);
+      toast('回应没发出去，稍后再试');
+    });
+  }
+
+  /* 增量拉回后重画当前会话所有可见气泡的回应条。
+     只动 .reactrow 这一层，不重建气泡 —— 重建会丢长按菜单和语音播放态。 */
+  function repaintReacts(){
+    var nodes = document.querySelectorAll('.msg[data-id]');
+    for(var i = 0; i < nodes.length; i++){
+      var n = nodes[i];
+      if(n._msg) paintReactRow(n, n._msg);
+    }
+  }
+
+  /* 3 秒一轮增量。跟消息轮询（1.5s）分开：回应是弱实时，没必要抢同样的频率。
+     起停都挂在 startChatPoll/stopChatPoll 上，调用点不用记两套。 */
+  function startReactPoll(){
+    stopReactPoll();
+    S.reactT = setInterval(function(){
+      if(document.hidden || S.screen !== 'chatdetail' || !S.cur || S.noReact) return;
+      var cid = S.cur.id;
+      fetchReacts(cid, S.reactAt[cid])
+        .then(function(n){ if(n) repaintReacts(); })
+        .catch(function(){});
+    }, 3000);
+  }
+  function stopReactPoll(){ if(S.reactT){ clearInterval(S.reactT); S.reactT = 0; } }
+
   function startChatPoll(){
     stopChatPoll();
     S.chatT = setInterval(function(){
       if(document.hidden || S.screen !== 'chatdetail' || !S.cur) return;
       fetchMessages(false).then(function(rows){ if(rows.length) markRead(); paintReadState(); }).catch(function(){});
     }, 1500);
+    startReactPoll();
   }
 
-  function stopChatPoll(){ if(S.chatT){ clearInterval(S.chatT); S.chatT = 0; } }
+  function stopChatPoll(){
+    if(S.chatT){ clearInterval(S.chatT); S.chatT = 0; }
+    stopReactPoll();
+  }
 
   /* ---------------- 已读回执 / 输入中（FR-315 / FR-316，P4） ----------------
      单聊专用：3s 轮一次对方的 last_read_at + typing_at。
@@ -12042,6 +12213,94 @@ function closeMomentVideo(){
         srvBox.appendChild(r);
       });
     }
+    /* Q-16 最近 7 天概览：明细列表只能一条条看，先给一个「哪类错在涨」的抓手。
+       刻意不引图表库 —— 单文件自包含是分发优势，为几条横条塞 200KB 不值。 */
+    var stHead = el('div', 'fhead');
+    stHead.appendChild(el('div', 'fname', '最近 7 天概览'));
+    fc.appendChild(stHead);
+    var stBox = el('div', 'frows');
+
+    function barRow(label, n, max){
+      var r = el('div', 'frow');
+      var box = el('div');
+      box.style.flex = '1';
+      box.appendChild(el('div', '', label));
+      var bar = el('div', 'ebar');
+      var fill = el('i');
+      /* 最少的也留 4% 宽，否则「只错 1 次」的那一条看起来像没画 */
+      fill.style.width = (max ? Math.max(4, Math.round(n / max * 100)) : 4) + '%';
+      bar.appendChild(fill);
+      box.appendChild(bar);
+      r.appendChild(box);
+      return r;
+    }
+
+    function renderStats(){
+      stBox.innerHTML = '';
+      if(S.noErrStats){
+        stBox.appendChild(el('div', 'frow', '概览未开通（p14 迁移未执行）'));
+        return;
+      }
+      if(S.errStatsBusy){ stBox.appendChild(el('div', 'frow', '统计中…')); return; }
+      var s = S.errStats;
+      if(!s || !s.total){ stBox.appendChild(el('div', 'frow', '最近 7 天没有错误')); return; }
+
+      var sum = el('div', 'frow', '共 ' + s.total + ' 次 · 今天 ' + (s.today || 0) + ' 次');
+      sum.style.fontWeight = '700';
+      stBox.appendChild(sum);
+
+      var bySrc = s.by_src || [], byPage = s.by_page || [], i, mx;
+      if(bySrc.length){
+        mx = 0;
+        for(i = 0; i < bySrc.length; i++){ if(bySrc[i].n > mx) mx = bySrc[i].n; }
+        stBox.appendChild(el('div', 'frow', '按类型'));
+        bySrc.forEach(function(x){
+          /* src 上报时常带文件名（'unhandledrejection' 或 'logic.js'），只留最后一段 */
+          var k = String(x.k || 'error');
+          k = k.split('/').pop();
+          stBox.appendChild(barRow(k + ' · ' + x.n + ' 次', x.n, mx));
+        });
+      }
+      if(byPage.length){
+        mx = 0;
+        for(i = 0; i < byPage.length; i++){ if(byPage[i].n > mx) mx = byPage[i].n; }
+        stBox.appendChild(el('div', 'frow', '按页面'));
+        byPage.forEach(function(x){
+          stBox.appendChild(barRow(String(x.k || '(未知页面)') + ' · ' + x.n + ' 次', x.n, mx));
+        });
+      }
+
+      /* 按天：后端只返回有数据的日期，空格在这里补 —— 在 SQL 里生成日历序列要引
+         generate_series，而 7 个桶前端补更省。 */
+      var byDay = {};
+      (s.by_day || []).forEach(function(x){ byDay[x.d] = x.n; });
+      var days = s.days || 7, seq = [], maxDay = 0;
+      for(i = days - 1; i >= 0; i--){
+        var dt = new Date();
+        dt.setHours(0, 0, 0, 0);
+        dt.setDate(dt.getDate() - i);
+        var key = dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate());
+        var n = byDay[key] || 0;
+        if(n > maxDay) maxDay = n;
+        seq.push({ d: key.slice(5), n: n });
+      }
+      stBox.appendChild(el('div', 'frow', '按天'));
+      seq.forEach(function(x){
+        stBox.appendChild(barRow(x.d + ' · ' + x.n + ' 次', x.n, maxDay));
+      });
+    }
+
+    renderStats();
+    fc.appendChild(stBox);
+    if(!S.noErrStats && !S.errStats && !S.errStatsBusy){
+      S.errStatsBusy = true;
+      loadErrorStats(7).then(function(s){
+        S.errStatsBusy = false;
+        S.errStats = s;
+        renderStats();
+      }).catch(function(){ S.errStatsBusy = false; renderStats(); });
+    }
+
     var srvHead = el('div', 'fhead');
     srvHead.appendChild(el('div', 'fname', '服务端最近 20 条'));
     fc.appendChild(srvHead);
@@ -12063,6 +12322,7 @@ function closeMomentVideo(){
     clr2.addEventListener('click', function(){
       clearServerErrors().then(function(ok){
         S.errServerList = [];
+        S.errStats = null;   /* 概览要跟着归零，否则清完还显示旧数字 */
         closeSheet();
         toast(ok ? '已清除服务端记录' : '清除失败，请稍后再试');
       });
@@ -13421,7 +13681,7 @@ function closeMomentVideo(){
     loadErrors();
     loadConvBgs(); /* FR-317 每会话背景 */
     loadVoiceSeen(); /* FR-1106 已听语音记录 */
-    loadReacts(); /* FR-1109 气泡回应（本地演示态） */
+    loadReacts(); /* FR-1109 气泡回应：清空内存态 + 丢掉 P6-3 那份只能自己看的旧数据 */
     bindPullRefresh(); /* FR-1112 下拉刷新 */
     bindPullMoments(); /* FR-1121 朋友圈下拉刷新 */
     bindLoadEarlier(); /* P11 聊天记录向上翻页 */
@@ -13518,7 +13778,7 @@ function closeMomentVideo(){
 
   /* ---------------- Service Worker：注册 + 新版本自动接管刷新 ---------------- */
   if('serviceWorker' in navigator){
-    var BUILD='1031.03:24';
+    var BUILD='1031.09:02';
     var hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
       if(!hadSW) return;
